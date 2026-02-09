@@ -21,6 +21,12 @@
     let loading = $state(true);
     let error: string | null = $state(null);
 
+    // Extract directory name from path
+    function getDirName(dirPath: string): string {
+        const parts = dirPath.split("/").filter(Boolean);
+        return parts[parts.length - 1] || dirPath;
+    }
+
     async function loadEntries() {
         try {
             loading = true;
@@ -81,27 +87,49 @@
     {:else if error}
         <div class="text-red-400 text-sm py-2">{error}</div>
     {:else}
-        {#each entries as entry}
+        <!-- Show root directory as top-level element -->
+        {#if depth === 0}
             <button
-                class="flex items-center gap-2 w-full px-2 py-1 text-left text-sm text-zinc-300 hover:bg-zinc-800 rounded transition-colors"
-                onclick={() => toggleDir(entry.path)}
+                class="flex items-center gap-2 w-full px-2 py-1 text-left text-sm text-zinc-300 hover:bg-zinc-800 rounded transition-colors font-medium"
+                onclick={() => toggleDir(path)}
             >
                 <span class="text-zinc-500 w-4 text-center">
-                    {expandedDirs.has(entry.path) ? "▼" : "▶"}
+                    {expandedDirs.has(path) ? "▼" : "▶"}
                 </span>
                 <span class="text-amber-400">📁</span>
-                <span class="truncate">{entry.name}</span>
+                <span class="truncate">{getDirName(path)}</span>
             </button>
+        {/if}
 
-            {#if expandedDirs.has(entry.path)}
-                <FolderTree path={entry.path} depth={depth + 1} {onSelect} />
+        <!-- Show children when expanded (or always for non-root) -->
+        {#if depth > 0 || expandedDirs.has(path)}
+            {#each entries as entry}
+                <button
+                    class="flex items-center gap-2 w-full px-2 py-1 text-left text-sm text-zinc-300 hover:bg-zinc-800 rounded transition-colors"
+                    style="padding-left: {(depth === 0 ? 1 : 0) * 12 + 8}px"
+                    onclick={() => toggleDir(entry.path)}
+                >
+                    <span class="text-zinc-500 w-4 text-center">
+                        {expandedDirs.has(entry.path) ? "▼" : "▶"}
+                    </span>
+                    <span class="text-amber-400">📁</span>
+                    <span class="truncate">{entry.name}</span>
+                </button>
+
+                {#if expandedDirs.has(entry.path)}
+                    <FolderTree
+                        path={entry.path}
+                        depth={depth + 1}
+                        {onSelect}
+                    />
+                {/if}
+            {/each}
+
+            {#if entries.length === 0}
+                <div class="text-zinc-500 text-sm py-2 pl-6">
+                    No subdirectories
+                </div>
             {/if}
-        {/each}
-
-        {#if entries.length === 0 && depth === 0}
-            <div class="text-zinc-500 text-sm py-2">
-                No subdirectories found
-            </div>
         {/if}
     {/if}
 </div>
