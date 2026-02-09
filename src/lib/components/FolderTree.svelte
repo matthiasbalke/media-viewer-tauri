@@ -81,7 +81,7 @@
     });
 </script>
 
-<div class="folder-tree" style="padding-left: {depth * 12}px">
+<div class="folder-tree">
     {#if loading && depth === 0}
         <div class="text-zinc-500 text-sm py-2">Loading...</div>
     {:else if error}
@@ -106,7 +106,7 @@
             {#each entries as entry}
                 <button
                     class="flex items-center gap-2 w-full px-2 py-1 text-left text-sm text-zinc-300 hover:bg-zinc-800 rounded transition-colors"
-                    style="padding-left: {(depth === 0 ? 1 : 0) * 12 + 8}px"
+                    style="padding-left: {(depth + 1) * 16}px"
                     onclick={() => toggleDir(entry.path)}
                 >
                     <span class="text-zinc-500 w-4 text-center">
@@ -124,12 +124,6 @@
                     />
                 {/if}
             {/each}
-
-            {#if entries.length === 0}
-                <div class="text-zinc-500 text-sm py-2 pl-6">
-                    No subdirectories
-                </div>
-            {/if}
         {/if}
     {/if}
 </div>
