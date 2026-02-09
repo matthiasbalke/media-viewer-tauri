@@ -1,11 +1,19 @@
-<script>
+<script lang="ts">
   import "../app.css";
   import FolderTree from "$lib/components/FolderTree.svelte";
+  import MediaGrid from "$lib/components/MediaGrid.svelte";
 
   let { children } = $props();
 
-  // Default to user's home directory for demo
+  // Default root path for folder tree
   let rootPath = $state("/Users/matthias/Desktop/media-viewer-example");
+
+  // Currently selected directory for media grid
+  let selectedPath: string | null = $state(rootPath);
+
+  function handleFolderSelect(path: string) {
+    selectedPath = path;
+  }
 </script>
 
 <div class="flex h-screen bg-zinc-950 text-zinc-100">
@@ -16,12 +24,13 @@
     </div>
 
     <nav class="flex-1 p-2 overflow-y-auto">
-      <FolderTree path={rootPath} />
+      <FolderTree path={rootPath} onSelect={handleFolderSelect} />
     </nav>
   </aside>
 
   <!-- Main content area -->
   <main class="flex-1 overflow-auto">
+    <MediaGrid path={selectedPath} />
     {@render children()}
   </main>
 </div>

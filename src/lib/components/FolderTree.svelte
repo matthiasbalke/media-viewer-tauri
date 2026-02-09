@@ -5,9 +5,10 @@
     interface Props {
         path: string;
         depth?: number;
+        onSelect?: (path: string) => void;
     }
 
-    let { path, depth = 0 }: Props = $props();
+    let { path, depth = 0, onSelect }: Props = $props();
 
     // Media file extensions
     const IMAGE_EXTENSIONS = [
@@ -105,6 +106,8 @@
             expandedDirs.add(dirPath);
             expandedDirs = new Set(expandedDirs);
         }
+        // Notify parent of selection
+        onSelect?.(dirPath);
     }
 
     // Load entries on mount
@@ -133,7 +136,11 @@
                 </button>
 
                 {#if expandedDirs.has(entry.path)}
-                    <FolderTree path={entry.path} depth={depth + 1} />
+                    <FolderTree
+                        path={entry.path}
+                        depth={depth + 1}
+                        {onSelect}
+                    />
                 {/if}
             {:else}
                 <button
