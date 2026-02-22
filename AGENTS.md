@@ -1,5 +1,6 @@
 ## general workflow
   * When asked for a change, always create a implementation plan and ask for approval before starting the change/implementation.
+  * When analysing a problem, create a plan on how to solve the problem and ask me for approval before starting the implementation.
   * When implementing an implementation plan, always work step by step.
   * when adding new plugins or dependencies, always check the license and ask me for approval before adding it.
   * When using libraries or frameworks, always check which version is in use by the current project and use the apropriate API.
