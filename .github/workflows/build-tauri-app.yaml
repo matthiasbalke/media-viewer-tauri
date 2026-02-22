@@ -1,0 +1,38 @@
+name: build tauri app
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+env:
+  RUST_BACKTRACE: 1
+
+concurrency:
+   group: ${{ github.workflow }}-${{ github.ref }}
+   cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust environment
+        uses: dtolnay/rust-toolchain@1.93.0
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v6.2.0
+        with:
+          # Version Spec of the version to use. Examples: 12.x, 10.15.1, >=10.15.0.
+          node-version: v24.13.0
+          # Target architecture for Node to use. Examples: x86, x64. Will use system architecture by default.
+          # architecture: # optional
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2.1.2
+        with:
+          # The version of Bun to install. (e.g. "latest", "canary", "1.0.0", "1.0.x", <sha>)
+          bun-version: 1.1.19
+          
+      - run: bun install
+      - run: bun tauri build
