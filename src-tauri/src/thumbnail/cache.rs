@@ -3,6 +3,7 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
+// Also defined in src/lib/components/FolderTree.svelte
 const CACHE_DIR_NAME: &str = ".mv-thumbnails";
 
 /// Returns the path to the thumbnail for a given source file.

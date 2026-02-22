@@ -10,6 +10,9 @@
 
     let { path, depth = 0, onSelect }: Props = $props();
 
+    // Must match CACHE_DIR_NAME in src-tauri/src/thumbnail/cache.rs
+    const THUMBNAIL_CACHE_DIR = ".mv-thumbnails";
+
     interface FileEntry {
         name: string;
         path: string;
@@ -41,8 +44,8 @@
                     const info = await stat(fullPath);
                     const isDir = info.isDirectory;
 
-                    // Show directories only
-                    if (isDir) {
+                    // Show directories only, skip thumbnail cache
+                    if (isDir && entry.name !== THUMBNAIL_CACHE_DIR) {
                         processed.push({
                             name: entry.name,
                             path: fullPath,
