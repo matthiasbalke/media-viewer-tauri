@@ -1,6 +1,9 @@
 <script lang="ts">
     import { readDir, stat } from "@tauri-apps/plugin-fs";
+    import { invoke } from "@tauri-apps/api/core";
     import { convertFileSrc } from "@tauri-apps/api/core";
+    import { listen } from "@tauri-apps/api/event";
+    import { onDestroy } from "svelte";
 
     interface Props {
         path: string | null;
@@ -8,7 +11,7 @@
 
     let { path }: Props = $props();
 
-    // Media file extensions
+    // Media file extensions (used to filter directory entries)
     const IMAGE_EXTENSIONS = [
         "jpg",
         "jpeg",
@@ -31,16 +34,31 @@
         "m4v",
     ];
 
+    type ThumbnailState = "loading" | "ready" | "error" | "unsupported";
+
     interface MediaFile {
         name: string;
         path: string;
-        src: string;
         isVideo: boolean;
+        thumbnailState: ThumbnailState;
+        thumbnailSrc: string | null;
+    }
+
+    interface ThumbnailUpdate {
+        path: string;
+        status: ThumbnailState;
+        thumbnailPath: string | null;
+        sessionId: number;
     }
 
     let files: MediaFile[] = $state([]);
     let loading = $state(false);
     let error: string | null = $state(null);
+    let currentSessionId: number | null = $state(null);
+    let nextSessionId = 0;
+
+    // Event listener cleanup
+    let unlistenFn: (() => void) | null = null;
 
     function getExtension(filename: string): string {
         const parts = filename.split(".");
@@ -59,11 +77,42 @@
         return isImageFile(filename) || isVideoFile(filename);
     }
 
+    async function setupListener() {
+        // Clean up previous listener
+        if (unlistenFn) {
+            unlistenFn();
+            unlistenFn = null;
+        }
+
+        unlistenFn = await listen<ThumbnailUpdate>(
+            "thumbnail-update",
+            (event) => {
+                const update = event.payload;
+
+                // Ignore events from a different session
+                if (update.sessionId !== currentSessionId) return;
+
+                const index = files.findIndex((f) => f.path === update.path);
+                if (index === -1) return;
+
+                files[index].thumbnailState = update.status;
+                if (update.status === "ready" && update.thumbnailPath) {
+                    files[index].thumbnailSrc = convertFileSrc(
+                        update.thumbnailPath,
+                    );
+                }
+            },
+        );
+    }
+
     async function loadMedia(dirPath: string) {
         try {
             loading = true;
             error = null;
             files = [];
+
+            // Generate a new session ID
+            currentSessionId = nextSessionId++;
 
             const entries = await readDir(dirPath);
             const mediaFiles: MediaFile[] = [];
@@ -77,8 +126,9 @@
                             mediaFiles.push({
                                 name: entry.name,
                                 path: fullPath,
-                                src: convertFileSrc(fullPath),
                                 isVideo: isVideoFile(entry.name),
+                                thumbnailState: "loading",
+                                thumbnailSrc: null,
                             });
                         }
                     } catch {
@@ -89,9 +139,25 @@
 
             // Sort by name
             files = mediaFiles.sort((a, b) => a.name.localeCompare(b.name));
+            loading = false;
+
+            // Set up event listener before triggering generation
+            await setupListener();
+
+            // Trigger background thumbnail generation
+            try {
+                await invoke("generate_thumbnails", {
+                    dir: dirPath,
+                    sessionId: currentSessionId,
+                });
+            } catch (e) {
+                console.error("Thumbnail generation failed:", e);
+            }
+
+            // All workers done — reset session ID
+            currentSessionId = null;
         } catch (e) {
             error = e instanceof Error ? e.message : "Failed to load media";
-        } finally {
             loading = false;
         }
     }
@@ -102,6 +168,15 @@
             loadMedia(path);
         } else {
             files = [];
+            currentSessionId = null;
+        }
+    });
+
+    // Cleanup listener on component destroy
+    onDestroy(() => {
+        if (unlistenFn) {
+            unlistenFn();
+            unlistenFn = null;
         }
     });
 </script>
@@ -129,34 +204,49 @@
                 <div
                     class="group relative aspect-square bg-zinc-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer"
                 >
-                    {#if file.isVideo}
+                    {#if file.thumbnailState === "loading"}
+                        <!-- Loading spinner -->
                         <div
                             class="absolute inset-0 flex items-center justify-center bg-zinc-900"
                         >
-                            <span class="text-4xl">🎬</span>
+                            <div
+                                class="animate-spin rounded-full h-8 w-8 border-2 border-zinc-600 border-t-zinc-300"
+                            ></div>
                         </div>
+                    {:else if file.thumbnailState === "error"}
+                        <!-- Error placeholder -->
                         <div
-                            class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2"
+                            class="absolute inset-0 flex items-center justify-center bg-zinc-900"
                         >
-                            <p class="text-xs text-zinc-300 truncate">
-                                {file.name}
-                            </p>
+                            <span class="text-4xl text-red-400">✕</span>
                         </div>
-                    {:else}
+                    {:else if file.thumbnailState === "unsupported"}
+                        <!-- Unsupported format placeholder -->
+                        <div
+                            class="absolute inset-0 flex items-center justify-center bg-zinc-900"
+                        >
+                            <span class="text-4xl text-zinc-500">?</span>
+                        </div>
+                    {:else if file.thumbnailSrc}
+                        <!-- Thumbnail ready -->
                         <img
-                            src={file.src}
+                            src={file.thumbnailSrc}
                             alt={file.name}
                             class="w-full h-full object-cover"
-                            loading="lazy"
                         />
-                        <div
-                            class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                            <p class="text-xs text-zinc-300 truncate">
-                                {file.name}
-                            </p>
-                        </div>
                     {/if}
+
+                    <!-- File name overlay -->
+                    <div
+                        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2 {file.thumbnailState ===
+                        'ready'
+                            ? 'opacity-0 group-hover:opacity-100'
+                            : ''} transition-opacity"
+                    >
+                        <p class="text-xs text-zinc-300 truncate">
+                            {file.name}
+                        </p>
+                    </div>
                 </div>
             {/each}
         </div>
