@@ -24,8 +24,7 @@
         "enable": true,
         "scope": {
           "allow": [
-            "$DESKTOP/**",
-            "$DEKTOP/**/.*"
+            "$DESKTOP/**"
           ],
           "requireLiteralLeadingDot": false
         }
