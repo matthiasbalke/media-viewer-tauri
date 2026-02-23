@@ -2,7 +2,7 @@
 
 [![GitHub Release][releases-shield]][releases]
 ![Project Stage][project-stage-shield]
-[![License][license-shield]](LICENSE.md)
+[![GitHub License][license-shield]](LICENSE.md)
 [![Github Actions][github-actions-shield]][github-actions]
 ![Project Maintenance][maintenance-shield]
 [![GitHub Activity][commits-shield]][commits]
@@ -12,7 +12,7 @@
 media-viewer is a cross platform application to browse media collections.
 The app design is based on Google Picasa, which is no longer available, so I needed a replacement, for browsing and sorting my pictures.
 
-NOTE: Video support is not implemented yet, but planned.
+> More image formats and video support are not implemented yet, but planned.
 
 ## Features
 
