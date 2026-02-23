@@ -10,6 +10,11 @@
 
   let { children } = $props();
 
+  // normalize path for cross platform compatibility
+  function normalizePath(path: string): string {
+    return path.replace(/\\/g, "/");
+  }
+
   // Array of root paths for multiple folder trees
   let rootPaths: string[] = $state([]);
 
@@ -38,7 +43,7 @@
     }
     const savedPaths = await store.get<string[]>("rootPaths");
     if (savedPaths && savedPaths.length > 0) {
-      rootPaths = savedPaths;
+      rootPaths = savedPaths.map(normalizePath);
     }
     storeReady = true;
 
@@ -79,9 +84,10 @@
     });
 
     if (selected && typeof selected === "string") {
-      rootPaths = [...rootPaths, selected];
+      const normalized = normalizePath(selected);
+      rootPaths = [...rootPaths, normalized];
       // Auto-select the new directory
-      selectedPath = selected;
+      selectedPath = normalized;
     }
   }
 

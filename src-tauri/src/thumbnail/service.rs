@@ -1,11 +1,12 @@
 use super::cache;
+use super::normalize_path;
 use serde::Serialize;
 use std::path::Path;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Semaphore;
 
-const THUMBNAIL_SIZE: u32 = 256;
+const THUMBNAIL_SIZE: u32 = 512;
 const MAX_WORKERS: usize = 4;
 
 const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif"];
@@ -44,8 +45,13 @@ impl ThumbnailService {
         cache::ensure_cache_dir(THUMBNAIL_SIZE)?;
 
         // Open and resize the image
-        let img = image::open(source)
-            .map_err(|e| format!("Failed to open image {}: {}", source.display(), e))?;
+        let img = image::open(source).map_err(|e| {
+            format!(
+                "Failed to open image {}: {}",
+                normalize_path(&source.to_string_lossy()),
+                e
+            )
+        })?;
 
         let thumbnail = img.thumbnail(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
 
@@ -90,7 +96,7 @@ impl ThumbnailService {
             let handle = tokio::spawn(async move {
                 let _permit = sem.acquire().await.unwrap();
 
-                let path_str = path.to_string_lossy().to_string();
+                let path_str = normalize_path(&path.to_string_lossy());
 
                 if !Self::is_supported(&path) {
                     let _ = app.emit(
@@ -119,13 +125,13 @@ impl ThumbnailService {
                             ThumbnailUpdate {
                                 path: path_str,
                                 status: "ready".to_string(),
-                                thumbnail_path: Some(thumb_path),
+                                thumbnail_path: Some(normalize_path(&thumb_path)),
                                 session_id,
                             },
                         );
                     }
                     Ok(Err(err)) => {
-                        eprintln!("Thumbnail error for {}: {}", path.display(), err);
+                        eprintln!("Thumbnail error for {}: {}", path_str, err);
                         let _ = app.emit(
                             "thumbnail-update",
                             ThumbnailUpdate {
@@ -137,7 +143,7 @@ impl ThumbnailService {
                         );
                     }
                     Err(err) => {
-                        eprintln!("Task join error for {}: {}", path.display(), err);
+                        eprintln!("Task join error for {}: {}", path_str, err);
                         let _ = app.emit(
                             "thumbnail-update",
                             ThumbnailUpdate {

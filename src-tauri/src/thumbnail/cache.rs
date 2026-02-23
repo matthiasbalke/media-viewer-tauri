@@ -19,9 +19,10 @@ fn manifest_path() -> Result<PathBuf, String> {
 }
 
 /// Computes the hash string for a source path.
+/// Normalizes the path first to ensure consistent hashes across platforms.
 fn hash_for_path(source: &Path) -> String {
     let mut hasher = DefaultHasher::new();
-    source.to_string_lossy().hash(&mut hasher);
+    super::normalize_path(&source.to_string_lossy()).hash(&mut hasher);
     format!("{:016x}", hasher.finish())
 }
 
@@ -115,7 +116,7 @@ pub fn register_thumbnail(source: &Path) -> Result<(), String> {
         .map_err(|e| format!("Manifest lock error: {}", e))?;
     let hash = hash_for_path(source);
     let mut manifest = load_manifest()?;
-    manifest.insert(hash, source.to_string_lossy().to_string());
+    manifest.insert(hash, super::normalize_path(&source.to_string_lossy()));
     save_manifest(&manifest)
 }
 
