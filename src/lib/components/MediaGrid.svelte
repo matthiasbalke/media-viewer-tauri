@@ -7,9 +7,15 @@
 
     interface Props {
         path: string | null;
+        thumbnailSize?: number;
+        itemCount?: number;
     }
 
-    let { path }: Props = $props();
+    let {
+        path,
+        thumbnailSize = 128,
+        itemCount = $bindable(0),
+    }: Props = $props();
 
     // Media file extensions (used to filter directory entries)
     const IMAGE_EXTENSIONS = [
@@ -179,6 +185,11 @@
             unlistenFn = null;
         }
     });
+
+    // Sync item count for statusbar
+    $effect(() => {
+        itemCount = files.length;
+    });
 </script>
 
 <div class="p-4">
@@ -198,11 +209,13 @@
         </div>
     {:else}
         <div
-            class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+            class="grid gap-4"
+            style="grid-template-columns: repeat(auto-fill, minmax({thumbnailSize}px, 1fr));"
         >
             {#each files as file}
                 <div
-                    class="group relative aspect-square bg-zinc-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer"
+                    class="group relative bg-zinc-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer"
+                    style="height: {thumbnailSize}px;"
                 >
                     {#if file.thumbnailState === "loading"}
                         <!-- Loading spinner -->
