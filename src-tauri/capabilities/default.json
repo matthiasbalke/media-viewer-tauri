@@ -8,7 +8,9 @@
   "permissions": [
     "core:default",
     "opener:default",
+    "store:default",
     "dialog:allow-open",
+    "window-state:default",
     "fs:allow-read-file",
     "fs:allow-read-dir",
     "fs:allow-stat",

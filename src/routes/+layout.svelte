@@ -4,6 +4,8 @@
   import MediaGrid from "$lib/components/MediaGrid.svelte";
   import StatusBar from "$lib/components/StatusBar.svelte";
   import { open } from "@tauri-apps/plugin-dialog";
+  import { load } from "@tauri-apps/plugin-store";
+  import { onMount } from "svelte";
 
   let { children } = $props();
 
@@ -14,7 +16,47 @@
   let selectedPath: string | null = $state(null);
 
   // Thumbnail size state
-  let thumbnailSize: number = $state(128);
+  const DEFAULT_THUMBNAIL_SIZE = 128;
+  let thumbnailSize: number = $state(DEFAULT_THUMBNAIL_SIZE);
+  let storeReady = $state(false);
+
+  const storeOptions = {
+    defaults: {
+      thumbnailSize: DEFAULT_THUMBNAIL_SIZE,
+      rootPaths: [] as string[],
+    },
+    autoSave: true as const,
+    overrideDefaults: true,
+  };
+
+  onMount(async () => {
+    const store = await load("settings.json", storeOptions);
+    const savedSize = await store.get<number>("thumbnailSize");
+    if (savedSize !== null && savedSize !== undefined) {
+      thumbnailSize = savedSize;
+    }
+    const savedPaths = await store.get<string[]>("rootPaths");
+    if (savedPaths && savedPaths.length > 0) {
+      rootPaths = savedPaths;
+    }
+    storeReady = true;
+  });
+
+  $effect(() => {
+    if (!storeReady) return;
+    const size = thumbnailSize; // read synchronously so $effect tracks it
+    load("settings.json", storeOptions).then((store) => {
+      store.set("thumbnailSize", size);
+    });
+  });
+
+  $effect(() => {
+    if (!storeReady) return;
+    const paths = rootPaths; // read synchronously so $effect tracks it
+    load("settings.json", storeOptions).then((store) => {
+      store.set("rootPaths", paths);
+    });
+  });
 
   // Item count from media grid
   let mediaItemCount: number = $state(0);
@@ -70,9 +112,13 @@
   <!-- Main content area -->
   <main class="flex-1 flex flex-col overflow-hidden">
     <div class="flex-1 overflow-auto">
-      <MediaGrid path={selectedPath} thumbnailSize={thumbnailSize} bind:itemCount={mediaItemCount} />
+      <MediaGrid
+        path={selectedPath}
+        {thumbnailSize}
+        bind:itemCount={mediaItemCount}
+      />
     </div>
-    <StatusBar bind:thumbnailSize={thumbnailSize} itemCount={mediaItemCount} />
+    <StatusBar bind:thumbnailSize itemCount={mediaItemCount} />
     {@render children()}
   </main>
 </div>
