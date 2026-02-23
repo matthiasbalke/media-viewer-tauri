@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <clipPath id="sq5">
+      <rect x="32" y="32" width="448" height="448" rx="96" ry="96"/>
+    </clipPath>
+    <linearGradient id="g5a" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5CECC6"/>
+      <stop offset="100%" stop-color="#9B7BEA"/>
+    </linearGradient>
+    <linearGradient id="g5b" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9B7BEA"/>
+      <stop offset="100%" stop-color="#F47C7C"/>
+    </linearGradient>
+    <linearGradient id="g5c" x1="0.5" y1="1" x2="0.5" y2="0">
+      <stop offset="0%" stop-color="#F47C7C"/>
+      <stop offset="100%" stop-color="#5CECC6"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="black"/>
+  <g clip-path="url(#sq5)">
+    <rect x="32" y="32" width="448" height="448" rx="96" fill="#1a1a2e"/>
+    <!-- Hexagon helper: center + size -->
+    <polygon points="200,120 290,120 335,198 290,276 200,276 155,198" fill="url(#g5a)" opacity="0.65"/>
+    <polygon points="230,220 320,220 365,298 320,376 230,376 185,298" fill="url(#g5b)" opacity="0.6"/>
+    <polygon points="280,150 370,150 415,228 370,306 280,306 235,228" fill="url(#g5c)" opacity="0.5"/>
+  </g>
+</svg>

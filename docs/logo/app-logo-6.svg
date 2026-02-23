@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <clipPath id="sq6">
+      <rect x="32" y="32" width="448" height="448" rx="96" ry="96"/>
+    </clipPath>
+  </defs>
+  <rect width="512" height="512" fill="black"/>
+  <g clip-path="url(#sq6)">
+    <rect x="32" y="32" width="448" height="448" rx="96" fill="#1a1a2e"/>
+    <!-- Aurora wave layers -->
+    <path d="M32,120 Q144,60 256,130 Q368,200 480,100 L480,480 L32,480 Z" fill="#5CECC6" opacity="0.6"/>
+    <path d="M32,220 Q160,140 280,230 Q400,320 480,200 L480,480 L32,480 Z" fill="#9B7BEA" opacity="0.6"/>
+    <path d="M32,320 Q150,250 270,330 Q390,410 480,310 L480,480 L32,480 Z" fill="#F47C7C" opacity="0.6"/>
+    <path d="M32,390 Q170,340 290,400 Q410,460 480,380 L480,480 L32,480 Z" fill="#5CECC6" opacity="0.35"/>
+  </g>
+</svg>
