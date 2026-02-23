@@ -2,6 +2,7 @@
   import "../app.css";
   import FolderTree from "$lib/components/FolderTree.svelte";
   import MediaGrid from "$lib/components/MediaGrid.svelte";
+  import StatusBar from "$lib/components/StatusBar.svelte";
   import { open } from "@tauri-apps/plugin-dialog";
 
   let { children } = $props();
@@ -11,6 +12,12 @@
 
   // Currently selected directory for media grid
   let selectedPath: string | null = $state(null);
+
+  // Thumbnail size state
+  let thumbnailSize: number = $state(128);
+
+  // Item count from media grid
+  let mediaItemCount: number = $state(0);
 
   function handleFolderSelect(path: string) {
     selectedPath = path;
@@ -61,8 +68,11 @@
   </aside>
 
   <!-- Main content area -->
-  <main class="flex-1 overflow-auto">
-    <MediaGrid path={selectedPath} />
+  <main class="flex-1 flex flex-col overflow-hidden">
+    <div class="flex-1 overflow-auto">
+      <MediaGrid path={selectedPath} thumbnailSize={thumbnailSize} bind:itemCount={mediaItemCount} />
+    </div>
+    <StatusBar bind:thumbnailSize={thumbnailSize} itemCount={mediaItemCount} />
     {@render children()}
   </main>
 </div>
