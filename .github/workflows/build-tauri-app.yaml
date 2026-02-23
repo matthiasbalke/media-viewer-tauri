@@ -1,0 +1,67 @@
+name: build tauri app
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+env:
+  RUST_BACKTRACE: 1
+
+concurrency:
+   group: ${{ github.workflow }}-${{ github.ref }}
+   cancel-in-progress: true
+
+jobs:
+  build-app:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # let all os builds run, even if one fails
+      fail-fast: false
+      matrix:
+        # https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job#standard-github-hosted-runners-for-public-repositories
+        # choose oldes linux for glibc compatiblity
+        # choose macos-15-intel for intel mac builds
+        # choose windows-latest for windows
+        os: [ubuntu-22.04, macos-15-intel, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install and cache APT packages
+        if: matrix.os == 'ubuntu-22.04'
+        uses: gerlero/apt-install@v1.3.11
+        with:
+          # APT packages to install
+          packages: libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Setup Rust environment
+        uses: dtolnay/rust-toolchain@1.93.0
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v6.2.0
+        with:
+          # Version Spec of the version to use. Examples: 12.x, 10.15.1, >=10.15.0.
+          node-version: v24.13.0
+          # Target architecture for Node to use. Examples: x86, x64. Will use system architecture by default.
+          # architecture: # optional
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2.1.2
+        with:
+          # The version of Bun to install. (e.g. "latest", "canary", "1.0.0", "1.0.x", <sha>)
+          bun-version: 1.1.19
+
+      - name: Install NSIS on Windows
+        if: matrix.os == 'windows-latest'
+        run: choco install nsis -y
+
+      - run: bun install
+      - run: bun tauri build
+
+      - name: Upload bundle artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-bundles-${{ matrix.os }}
+          path: src-tauri/target/release/bundle/**
