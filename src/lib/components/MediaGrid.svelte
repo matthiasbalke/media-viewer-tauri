@@ -28,6 +28,9 @@
         "svg",
         "ico",
         "avif",
+        "cr2",
+        "heic",
+        "heif",
     ];
     const VIDEO_EXTENSIONS = [
         "mp4",

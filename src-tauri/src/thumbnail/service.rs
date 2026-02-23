@@ -9,7 +9,9 @@ use tokio::sync::Semaphore;
 const THUMBNAIL_SIZE: u32 = 512;
 const MAX_WORKERS: usize = 4;
 
-const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif"];
+const SUPPORTED_EXTENSIONS: &[&str] = &[
+    "jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif", "ico",
+];
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
