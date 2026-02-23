@@ -1,4 +1,5 @@
 use super::cache;
+use super::normalize_path;
 use serde::Serialize;
 use std::path::Path;
 use std::sync::Arc;
@@ -7,12 +8,6 @@ use tokio::sync::Semaphore;
 
 const THUMBNAIL_SIZE: u32 = 512;
 const MAX_WORKERS: usize = 4;
-
-/// Normalizes a file path to use forward slashes.
-/// This ensures consistent paths across platforms when sending to the frontend.
-fn normalize_path(path: &str) -> String {
-    path.replace('\\', "/")
-}
 
 const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif"];
 
@@ -50,8 +45,13 @@ impl ThumbnailService {
         cache::ensure_cache_dir(THUMBNAIL_SIZE)?;
 
         // Open and resize the image
-        let img = image::open(source)
-            .map_err(|e| format!("Failed to open image {}: {}", source.display(), e))?;
+        let img = image::open(source).map_err(|e| {
+            format!(
+                "Failed to open image {}: {}",
+                normalize_path(&source.to_string_lossy()),
+                e
+            )
+        })?;
 
         let thumbnail = img.thumbnail(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
 
@@ -131,7 +131,7 @@ impl ThumbnailService {
                         );
                     }
                     Ok(Err(err)) => {
-                        eprintln!("Thumbnail error for {}: {}", path.display(), err);
+                        eprintln!("Thumbnail error for {}: {}", path_str, err);
                         let _ = app.emit(
                             "thumbnail-update",
                             ThumbnailUpdate {
@@ -143,7 +143,7 @@ impl ThumbnailService {
                         );
                     }
                     Err(err) => {
-                        eprintln!("Task join error for {}: {}", path.display(), err);
+                        eprintln!("Task join error for {}: {}", path_str, err);
                         let _ = app.emit(
                             "thumbnail-update",
                             ThumbnailUpdate {
