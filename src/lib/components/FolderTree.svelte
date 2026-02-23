@@ -10,10 +10,14 @@
 
     let { path, depth = 0, onSelect }: Props = $props();
 
+    // Must match CACHE_DIR_NAME in src-tauri/src/thumbnail/cache.rs
+    const THUMBNAIL_CACHE_DIR = ".mv-thumbnails";
+
     interface FileEntry {
         name: string;
         path: string;
         isDirectory: boolean;
+        hasSubfolders: boolean;
     }
 
     let entries: FileEntry[] = $state([]);
@@ -25,6 +29,25 @@
     function getDirName(dirPath: string): string {
         const parts = dirPath.split("/").filter(Boolean);
         return parts[parts.length - 1] || dirPath;
+    }
+
+    async function hasSubfolders(dirPath: string): Promise<boolean> {
+        try {
+            const children = await readDir(dirPath);
+            for (const child of children) {
+                if (child.name === THUMBNAIL_CACHE_DIR) continue;
+                const childPath = `${dirPath}/${child.name}`;
+                try {
+                    const info = await stat(childPath);
+                    if (info.isDirectory) return true;
+                } catch {
+                    // Skip files we can't stat
+                }
+            }
+        } catch {
+            // Can't read dir
+        }
+        return false;
     }
 
     async function loadEntries() {
@@ -41,12 +64,13 @@
                     const info = await stat(fullPath);
                     const isDir = info.isDirectory;
 
-                    // Show directories only
-                    if (isDir) {
+                    // Show directories only, skip thumbnail cache
+                    if (isDir && entry.name !== THUMBNAIL_CACHE_DIR) {
                         processed.push({
                             name: entry.name,
                             path: fullPath,
                             isDirectory: isDir,
+                            hasSubfolders: await hasSubfolders(fullPath),
                         });
                     }
                 } catch {
@@ -110,7 +134,9 @@
                     onclick={() => toggleDir(entry.path)}
                 >
                     <span class="text-zinc-500 w-4 text-center">
-                        {expandedDirs.has(entry.path) ? "▼" : "▶"}
+                        {#if entry.hasSubfolders}
+                            {expandedDirs.has(entry.path) ? "▼" : "▶"}
+                        {/if}
                     </span>
                     <span class="text-amber-400">📁</span>
                     <span class="truncate">{entry.name}</span>

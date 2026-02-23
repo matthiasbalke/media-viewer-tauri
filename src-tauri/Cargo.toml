@@ -28,3 +28,13 @@ tauri-plugin-store = "2.4.2"
 tauri-plugin-persisted-scope = "2.3.5"
 tauri-plugin-window-state = "2.4.1"
 
+image = "0.25.9"
+tokio = { version = "1.49.0", features = ["rt", "sync"] }
+
+# Optimize image processing dependencies even in dev builds
+[profile.dev.package.image]
+opt-level = 2
+
+[profile.dev.package.zune-jpeg]
+opt-level = 2
+
