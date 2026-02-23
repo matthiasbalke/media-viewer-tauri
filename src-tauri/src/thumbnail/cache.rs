@@ -37,12 +37,12 @@ pub fn thumbnail_path(source: &Path, size: u32) -> Result<PathBuf, String> {
 pub fn is_stale(source: &Path, thumbnail: &Path) -> bool {
     let source_mtime = match fs::metadata(source).and_then(|m| m.modified()) {
         Ok(t) => t,
-        Err(_) => return true,
+        Err(_) => return true, // Can't read source → treat as stale
     };
 
     let thumb_mtime = match fs::metadata(thumbnail).and_then(|m| m.modified()) {
         Ok(t) => t,
-        Err(_) => return true,
+        Err(_) => return true, // Thumbnail doesn't exist → stale
     };
 
     source_mtime > thumb_mtime
