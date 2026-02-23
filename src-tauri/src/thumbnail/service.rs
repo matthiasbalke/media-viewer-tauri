@@ -8,6 +8,12 @@ use tokio::sync::Semaphore;
 const THUMBNAIL_SIZE: u32 = 256;
 const MAX_WORKERS: usize = 4;
 
+/// Normalizes a file path to use forward slashes.
+/// This ensures consistent paths across platforms when sending to the frontend.
+fn normalize_path(path: &str) -> String {
+    path.replace('\\', "/")
+}
+
 const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif"];
 
 #[derive(Clone, Serialize)]
@@ -90,7 +96,7 @@ impl ThumbnailService {
             let handle = tokio::spawn(async move {
                 let _permit = sem.acquire().await.unwrap();
 
-                let path_str = path.to_string_lossy().to_string();
+                let path_str = normalize_path(&path.to_string_lossy());
 
                 if !Self::is_supported(&path) {
                     let _ = app.emit(
@@ -119,7 +125,7 @@ impl ThumbnailService {
                             ThumbnailUpdate {
                                 path: path_str,
                                 status: "ready".to_string(),
-                                thumbnail_path: Some(thumb_path),
+                                thumbnail_path: Some(normalize_path(&thumb_path)),
                                 session_id,
                             },
                         );
