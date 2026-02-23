@@ -48,6 +48,19 @@
     function handleKeydown(event: KeyboardEvent) {
         if (event.key === "Escape") {
             onClose?.();
+            return;
+        }
+
+        // Navigation
+        if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+            const currentIndex = files.findIndex((f) => f.path === file.path);
+            if (currentIndex === -1) return;
+
+            if (event.key === "ArrowRight" && currentIndex < files.length - 1) {
+                onFileChange?.(files[currentIndex + 1]);
+            } else if (event.key === "ArrowLeft" && currentIndex > 0) {
+                onFileChange?.(files[currentIndex - 1]);
+            }
         }
     }
 
