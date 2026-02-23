@@ -19,9 +19,6 @@
       "identifier": "fs:scope",
       "allow": [
         {
-          "path": "$TEMP/**"
-        },
-        {
           "path": "$DESKTOP/**"
         }
       ]

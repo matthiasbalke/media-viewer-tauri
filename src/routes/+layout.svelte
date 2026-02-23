@@ -4,6 +4,7 @@
   import MediaGrid from "$lib/components/MediaGrid.svelte";
   import StatusBar from "$lib/components/StatusBar.svelte";
   import { open } from "@tauri-apps/plugin-dialog";
+  import { invoke } from "@tauri-apps/api/core";
   import { load } from "@tauri-apps/plugin-store";
   import { onMount } from "svelte";
 
@@ -40,6 +41,11 @@
       rootPaths = savedPaths;
     }
     storeReady = true;
+
+    // Background cleanup of orphan thumbnails
+    invoke("cleanup_orphan_thumbnails").catch((e: unknown) =>
+      console.error("Orphan thumbnail cleanup failed:", e),
+    );
   });
 
   $effect(() => {
@@ -78,6 +84,23 @@
       selectedPath = selected;
     }
   }
+
+  async function removeRootPath(pathToRemove: string) {
+    // Clean up thumbnails for this directory tree
+    try {
+      await invoke("cleanup_thumbnails_for_dir", { dir: pathToRemove });
+    } catch (e) {
+      console.error("Thumbnail cleanup failed:", e);
+    }
+
+    // Remove from rootPaths
+    rootPaths = rootPaths.filter((p) => p !== pathToRemove);
+
+    // Clear selection if it was within the removed tree
+    if (selectedPath?.startsWith(pathToRemove)) {
+      selectedPath = null;
+    }
+  }
 </script>
 
 <div class="flex h-screen bg-zinc-950 text-zinc-100">
@@ -101,8 +124,18 @@
         </div>
       {:else}
         {#each rootPaths as rootPath}
-          <div class="mb-2">
+          <div class="mb-2 group/root relative">
             <FolderTree path={rootPath} onSelect={handleFolderSelect} />
+            <button
+              class="absolute top-0 right-0 w-6 h-6 flex items-center justify-center
+                     text-zinc-500 hover:text-red-400 rounded
+                     opacity-0 group-hover/root:opacity-100 transition-opacity
+                     text-xs"
+              onclick={() => removeRootPath(rootPath)}
+              title="Remove directory"
+            >
+              ✕
+            </button>
           </div>
         {/each}
       {/if}

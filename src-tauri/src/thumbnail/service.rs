@@ -1,16 +1,14 @@
 use super::cache;
 use serde::Serialize;
 use std::path::Path;
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Semaphore;
-use std::sync::Arc;
 
 const THUMBNAIL_SIZE: u32 = 256;
 const MAX_WORKERS: usize = 4;
 
-const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif",
-];
+const SUPPORTED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif"];
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,7 +33,7 @@ impl ThumbnailService {
     /// Generates a thumbnail for a single file.
     /// Returns the thumbnail path on success.
     fn generate_single(source: &Path) -> Result<String, String> {
-        let thumb_path = cache::thumbnail_path(source, THUMBNAIL_SIZE);
+        let thumb_path = cache::thumbnail_path(source, THUMBNAIL_SIZE)?;
 
         // Check if cached thumbnail is still valid
         if thumb_path.exists() && !cache::is_stale(source, &thumb_path) {
@@ -43,8 +41,7 @@ impl ThumbnailService {
         }
 
         // Ensure cache directory exists
-        let source_dir = source.parent().ok_or("No parent directory")?;
-        cache::ensure_cache_dir(source_dir, THUMBNAIL_SIZE)?;
+        cache::ensure_cache_dir(THUMBNAIL_SIZE)?;
 
         // Open and resize the image
         let img = image::open(source)
@@ -56,6 +53,9 @@ impl ThumbnailService {
         thumbnail
             .save(&thumb_path)
             .map_err(|e| format!("Failed to save thumbnail: {}", e))?;
+
+        // Register in manifest for cleanup tracking
+        cache::register_thumbnail(source)?;
 
         Ok(thumb_path.to_string_lossy().to_string())
     }

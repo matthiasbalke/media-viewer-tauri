@@ -30,6 +30,7 @@ tauri-plugin-window-state = "2.4.1"
 
 image = "0.25.9"
 tokio = { version = "1.49.0", features = ["rt", "sync"] }
+dirs = "6"
 
 # Optimize image processing dependencies even in dev builds
 [profile.dev.package.image]
