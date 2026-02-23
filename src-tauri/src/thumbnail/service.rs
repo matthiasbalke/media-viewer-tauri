@@ -35,7 +35,7 @@ impl ThumbnailService {
     /// Generates a thumbnail for a single file.
     /// Returns the thumbnail path on success.
     fn generate_single(source: &Path) -> Result<String, String> {
-        let thumb_path = cache::thumbnail_path(source, THUMBNAIL_SIZE);
+        let thumb_path = cache::thumbnail_path(source, THUMBNAIL_SIZE)?;
 
         // Check if cached thumbnail is still valid
         if thumb_path.exists() && !cache::is_stale(source, &thumb_path) {
@@ -43,8 +43,7 @@ impl ThumbnailService {
         }
 
         // Ensure cache directory exists
-        let source_dir = source.parent().ok_or("No parent directory")?;
-        cache::ensure_cache_dir(source_dir, THUMBNAIL_SIZE)?;
+        cache::ensure_cache_dir(THUMBNAIL_SIZE)?;
 
         // Open and resize the image
         let img = image::open(source)

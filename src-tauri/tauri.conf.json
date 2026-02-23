@@ -30,7 +30,7 @@
         "enable": true,
         "scope": {
           "allow": [
-            "$DESKTOP/**"
+            "$HOME/.mv/**"
           ],
           "requireLiteralLeadingDot": false
         }

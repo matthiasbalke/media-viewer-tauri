@@ -2319,6 +2319,7 @@ dependencies = [
 name = "media-viewer"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "image",
  "serde",
  "serde_json",

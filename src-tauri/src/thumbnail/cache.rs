@@ -3,21 +3,21 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-// Also defined in src/lib/components/FolderTree.svelte
-const CACHE_DIR_NAME: &str = ".mv-thumbnails";
+/// Returns the base cache directory: ~/.mv/thumbnails
+fn cache_base_dir() -> Result<PathBuf, String> {
+    let home = dirs::home_dir().ok_or("Could not determine home directory")?;
+    Ok(home.join(".mv").join("thumbnails"))
+}
 
 /// Returns the path to the thumbnail for a given source file.
-/// Format: <source_dir>/.mv-thumbnails/<size>/<sha256_of_path>.jpg
-pub fn thumbnail_path(source: &Path, size: u32) -> PathBuf {
-    let parent = source.parent().unwrap_or(Path::new("."));
+/// Format: ~/.mv/thumbnails/<size>/<hash>.jpg
+pub fn thumbnail_path(source: &Path, size: u32) -> Result<PathBuf, String> {
+    let base = cache_base_dir()?;
     let mut hasher = DefaultHasher::new();
     source.to_string_lossy().hash(&mut hasher);
     let hash = format!("{:016x}", hasher.finish());
 
-    parent
-        .join(CACHE_DIR_NAME)
-        .join(size.to_string())
-        .join(format!("{}.jpg", hash))
+    Ok(base.join(size.to_string()).join(format!("{}.jpg", hash)))
 }
 
 /// Returns true if the thumbnail is stale (source was modified after the thumbnail).
@@ -35,10 +35,10 @@ pub fn is_stale(source: &Path, thumbnail: &Path) -> bool {
     source_mtime > thumb_mtime
 }
 
-/// Creates the cache directory for the given source directory and thumbnail size.
+/// Creates the cache directory for the given thumbnail size.
 /// Returns the cache directory path or an error if it can't be created.
-pub fn ensure_cache_dir(source_dir: &Path, size: u32) -> Result<PathBuf, String> {
-    let cache_dir = source_dir.join(CACHE_DIR_NAME).join(size.to_string());
+pub fn ensure_cache_dir(size: u32) -> Result<PathBuf, String> {
+    let cache_dir = cache_base_dir()?.join(size.to_string());
 
     if cache_dir.exists() {
         if !cache_dir.is_dir() {

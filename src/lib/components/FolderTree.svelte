@@ -10,9 +10,6 @@
 
     let { path, depth = 0, onSelect }: Props = $props();
 
-    // Must match CACHE_DIR_NAME in src-tauri/src/thumbnail/cache.rs
-    const THUMBNAIL_CACHE_DIR = ".mv-thumbnails";
-
     interface FileEntry {
         name: string;
         path: string;
@@ -35,7 +32,6 @@
         try {
             const children = await readDir(dirPath);
             for (const child of children) {
-                if (child.name === THUMBNAIL_CACHE_DIR) continue;
                 const childPath = `${dirPath}/${child.name}`;
                 try {
                     const info = await stat(childPath);
@@ -64,8 +60,8 @@
                     const info = await stat(fullPath);
                     const isDir = info.isDirectory;
 
-                    // Show directories only, skip thumbnail cache
-                    if (isDir && entry.name !== THUMBNAIL_CACHE_DIR) {
+                    // Show directories only
+                    if (isDir) {
                         processed.push({
                             name: entry.name,
                             path: fullPath,
