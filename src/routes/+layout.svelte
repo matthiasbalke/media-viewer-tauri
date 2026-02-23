@@ -2,6 +2,7 @@
   import "../app.css";
   import FolderTree from "$lib/components/FolderTree.svelte";
   import MediaGrid from "$lib/components/MediaGrid.svelte";
+  import MediaViewer from "$lib/components/MediaViewer.svelte";
   import StatusBar from "$lib/components/StatusBar.svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import { invoke } from "@tauri-apps/api/core";
@@ -20,6 +21,17 @@
 
   // Currently selected directory for media grid
   let selectedPath: string | null = $state(null);
+
+  // Currently viewed file (null = grid mode, set = viewer mode)
+  interface MediaFile {
+    name: string;
+    path: string;
+    isVideo: boolean;
+    thumbnailState: "loading" | "ready" | "error" | "unsupported";
+    thumbnailSrc: string | null;
+  }
+  let viewingFile: MediaFile | null = $state(null);
+  let mediaFiles: MediaFile[] = $state([]);
 
   // Thumbnail size state
   const DEFAULT_THUMBNAIL_SIZE = 128;
@@ -74,6 +86,19 @@
 
   function handleFolderSelect(path: string) {
     selectedPath = path;
+    viewingFile = null; // reset viewer when switching folders
+  }
+
+  function handleImageOpen(file: MediaFile) {
+    viewingFile = file;
+  }
+
+  function handleViewerClose() {
+    viewingFile = null;
+  }
+
+  function handleViewerFileChange(file: MediaFile) {
+    viewingFile = file;
   }
 
   async function addFolderTree() {
@@ -151,11 +176,22 @@
   <!-- Main content area -->
   <main class="flex-1 flex flex-col overflow-hidden">
     <div class="flex-1 overflow-auto">
-      <MediaGrid
-        path={selectedPath}
-        {thumbnailSize}
-        bind:itemCount={mediaItemCount}
-      />
+      {#if viewingFile}
+        <MediaViewer
+          file={viewingFile}
+          files={mediaFiles}
+          onClose={handleViewerClose}
+          onFileChange={handleViewerFileChange}
+        />
+      {:else}
+        <MediaGrid
+          path={selectedPath}
+          {thumbnailSize}
+          bind:itemCount={mediaItemCount}
+          bind:mediaFiles
+          onImageOpen={handleImageOpen}
+        />
+      {/if}
     </div>
     <StatusBar bind:thumbnailSize itemCount={mediaItemCount} />
     {@render children()}
