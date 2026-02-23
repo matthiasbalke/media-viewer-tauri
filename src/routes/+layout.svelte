@@ -21,16 +21,23 @@
   let storeReady = $state(false);
 
   const storeOptions = {
-    defaults: { thumbnailSize: DEFAULT_THUMBNAIL_SIZE },
+    defaults: {
+      thumbnailSize: DEFAULT_THUMBNAIL_SIZE,
+      rootPaths: [] as string[],
+    },
     autoSave: true as const,
     overrideDefaults: true,
   };
 
   onMount(async () => {
     const store = await load("settings.json", storeOptions);
-    const saved = await store.get<number>("thumbnailSize");
-    if (saved !== null && saved !== undefined) {
-      thumbnailSize = saved;
+    const savedSize = await store.get<number>("thumbnailSize");
+    if (savedSize !== null && savedSize !== undefined) {
+      thumbnailSize = savedSize;
+    }
+    const savedPaths = await store.get<string[]>("rootPaths");
+    if (savedPaths && savedPaths.length > 0) {
+      rootPaths = savedPaths;
     }
     storeReady = true;
   });
@@ -40,6 +47,14 @@
     const size = thumbnailSize; // read synchronously so $effect tracks it
     load("settings.json", storeOptions).then((store) => {
       store.set("thumbnailSize", size);
+    });
+  });
+
+  $effect(() => {
+    if (!storeReady) return;
+    const paths = rootPaths; // read synchronously so $effect tracks it
+    load("settings.json", storeOptions).then((store) => {
+      store.set("rootPaths", paths);
     });
   });
 
