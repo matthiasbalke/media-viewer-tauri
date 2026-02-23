@@ -30,7 +30,8 @@
         "enable": true,
         "scope": {
           "allow": [
-            "$HOME/.mv/**"
+            "$HOME/.mv/**",
+            "$HOME/**"
           ],
           "requireLiteralLeadingDot": false
         }

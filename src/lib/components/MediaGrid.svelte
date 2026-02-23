@@ -5,16 +5,28 @@
     import { listen } from "@tauri-apps/api/event";
     import { onDestroy } from "svelte";
 
+    interface MediaFile {
+        name: string;
+        path: string;
+        isVideo: boolean;
+        thumbnailState: ThumbnailState;
+        thumbnailSrc: string | null;
+    }
+
     interface Props {
         path: string | null;
         thumbnailSize?: number;
         itemCount?: number;
+        mediaFiles?: MediaFile[];
+        onImageOpen?: (file: MediaFile) => void;
     }
 
     let {
         path,
         thumbnailSize = 128,
         itemCount = $bindable(0),
+        mediaFiles = $bindable([]),
+        onImageOpen,
     }: Props = $props();
 
     // Media file extensions (used to filter directory entries)
@@ -44,14 +56,6 @@
     ];
 
     type ThumbnailState = "loading" | "ready" | "error" | "unsupported";
-
-    interface MediaFile {
-        name: string;
-        path: string;
-        isVideo: boolean;
-        thumbnailState: ThumbnailState;
-        thumbnailSrc: string | null;
-    }
 
     interface ThumbnailUpdate {
         path: string;
@@ -189,9 +193,10 @@
         }
     });
 
-    // Sync item count for statusbar
+    // Sync item count and files for parent
     $effect(() => {
         itemCount = files.length;
+        mediaFiles = files;
     });
 </script>
 
@@ -219,6 +224,9 @@
                 <div
                     class="group relative bg-zinc-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer"
                     style="height: {thumbnailSize}px;"
+                    role="button"
+                    tabindex="0"
+                    ondblclick={() => onImageOpen?.(file)}
                 >
                     {#if file.thumbnailState === "loading"}
                         <!-- Loading spinner -->

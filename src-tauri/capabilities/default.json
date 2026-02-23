@@ -19,7 +19,10 @@
       "identifier": "fs:scope",
       "allow": [
         {
-          "path": "$DESKTOP/**"
+          "path": "$HOME/**"
+        },
+        {
+          "path": "**"
         }
       ]
     }
