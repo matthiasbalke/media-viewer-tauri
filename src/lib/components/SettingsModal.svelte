@@ -24,6 +24,33 @@
         }
     }
 
+    let isDeletingAll = $state(false);
+    let deleteAllMessage = $state("");
+    let confirmDeleteAll = $state(false);
+
+    async function handleDeleteAll() {
+        if (!confirmDeleteAll) {
+            confirmDeleteAll = true;
+            return;
+        }
+
+        isDeletingAll = true;
+        deleteAllMessage = "Deleting all thumbnails...";
+        try {
+            await invoke("delete_all_thumbnails");
+            deleteAllMessage = "All thumbnails deleted!";
+            confirmDeleteAll = false;
+        } catch (e) {
+            console.error(e);
+            deleteAllMessage = "Failed to delete thumbnails.";
+        } finally {
+            setTimeout(() => {
+                isDeletingAll = false;
+                deleteAllMessage = "";
+            }, 3000);
+        }
+    }
+
     function handleBackdropClick(e: MouseEvent) {
         if (e.target === e.currentTarget) {
             onClose();
@@ -48,6 +75,7 @@
     transition:fade={{ duration: 200 }}
     role="dialog"
     aria-modal="true"
+    tabindex="-1"
 >
     <!-- Modal Content -->
     <div
@@ -115,6 +143,41 @@
                         {#if cleanMessage}
                             <p class="text-xs text-blue-400" transition:fade>
                                 {cleanMessage}
+                            </p>
+                        {/if}
+
+                        <div class="h-px bg-zinc-800/50 my-2"></div>
+
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-red-400">
+                                    Clear Entire Cache
+                                </p>
+                                <p class="text-xs text-zinc-500 mt-1 max-w-sm">
+                                    Delete all generated thumbnails. They will
+                                    be regenerated the next time you browse your
+                                    media folders.
+                                </p>
+                            </div>
+                            <button
+                                class="px-4 py-2 {confirmDeleteAll
+                                    ? 'bg-red-600 hover:bg-red-500 border-red-500 text-white'
+                                    : 'bg-red-950/30 hover:bg-red-900/40 text-red-400 border-red-900/50'} text-sm font-medium rounded-lg transition-colors border disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                onclick={handleDeleteAll}
+                                disabled={isDeletingAll}
+                            >
+                                {#if isDeletingAll}
+                                    Deleting...
+                                {:else if confirmDeleteAll}
+                                    Are you sure?
+                                {:else}
+                                    Delete All
+                                {/if}
+                            </button>
+                        </div>
+                        {#if deleteAllMessage}
+                            <p class="text-xs text-red-400" transition:fade>
+                                {deleteAllMessage}
                             </p>
                         {/if}
                     </div>

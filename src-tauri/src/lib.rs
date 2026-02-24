@@ -31,6 +31,13 @@ async fn cleanup_orphan_thumbnails() -> Result<u32, String> {
         .map_err(|e| format!("Task join error: {}", e))?
 }
 
+#[tauri::command]
+async fn delete_all_thumbnails() -> Result<(), String> {
+    tokio::task::spawn_blocking(|| thumbnail::delete_all())
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -44,7 +51,8 @@ pub fn run() {
             greet,
             generate_thumbnails,
             cleanup_thumbnails_for_dir,
-            cleanup_orphan_thumbnails
+            cleanup_orphan_thumbnails,
+            delete_all_thumbnails
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

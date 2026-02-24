@@ -190,3 +190,15 @@ pub fn cleanup_orphans() -> Result<u32, String> {
     save_manifest(&manifest)?;
     Ok(removed)
 }
+
+/// Deletes the entire thumbnail cache directory.
+pub fn delete_all() -> Result<(), String> {
+    let _lock = MANIFEST_LOCK
+        .lock()
+        .map_err(|e| format!("Manifest lock error: {}", e))?;
+    let base = cache_base_dir()?;
+    if base.exists() {
+        fs::remove_dir_all(&base).map_err(|e| format!("Failed to delete cache dir: {}", e))?;
+    }
+    Ok(())
+}

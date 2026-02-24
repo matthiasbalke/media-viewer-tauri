@@ -1,7 +1,7 @@
 mod cache;
 mod service;
 
-pub use cache::{cleanup_for_prefix, cleanup_orphans};
+pub use cache::{cleanup_for_prefix, cleanup_orphans, delete_all};
 pub use service::ThumbnailService;
 
 /// Normalizes a file path to use forward slashes.
