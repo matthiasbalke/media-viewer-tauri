@@ -41,8 +41,10 @@
   * do we really need to build the hole distribution, on all os's to verify a PR?
 
 * automatic code review
+  * [x] CodeQL
+  * others?
 
-* add dependabot
+* [x] add dependabot
 
 * add code quality analysis, to check the AI code
 
