@@ -5,14 +5,14 @@
 
 version: 2
 updates:
-  - package-ecosystem: "Bun"
+  - package-ecosystem: "bun"
     directory: "/"
     exclude-paths:
       - "/.github/**"
     schedule:
       interval: "weekly"
 
-  - package-ecosystem: "Cargo"
+  - package-ecosystem: "cargo"
     directory: "/src-tauri/"
     schedule:
       interval: "weekly"
