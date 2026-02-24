@@ -7,8 +7,6 @@ version: 2
 updates:
   - package-ecosystem: "bun"
     directory: "/"
-    exclude-paths:
-      - "/.github/**"
     schedule:
       interval: "weekly"
 
