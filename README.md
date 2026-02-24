@@ -56,16 +56,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 [project-stage-shield]: https://img.shields.io/badge/project%20stage-early%09testing-yellow.svg
-[license-shield]: https://img.shields.io/github/license/matthiasbalke/media-viewer-tauri
-[releases-shield]: https://img.shields.io/github/v/release/matthiasbalke/media-viewer-tauri?include_prereleases
-[releases]: https://github.com/matthiasbalke/media-viewer-tauri/releases
-[github-actions-shield]: https://github.com/matthiasbalke/media-viewer-tauri/actions/workflows/build-tauri-app.yaml/badge.svg
-[github-actions]: https://github.com/matthiasbalke/media-viewer-tauri/actions
+[license-shield]: https://img.shields.io/github/license/matthiasbalke/media-viewer
+[releases-shield]: https://img.shields.io/github/v/release/matthiasbalke/media-viewer?include_prereleases
+[releases]: https://github.com/matthiasbalke/media-viewer/releases
+[github-actions-shield]: https://github.com/matthiasbalke/media-viewer/actions/workflows/build-tauri-app.yaml/badge.svg
+[github-actions]: https://github.com/matthiasbalke/media-viewer/actions
 
 [maintenance-shield]: https://img.shields.io/maintenance/yes/2026.svg
-[commits-shield]: https://img.shields.io/github/commit-activity/y/matthiasbalke/media-viewer-tauri.svg
-[commits]: https://github.com/matthiasbalke/media-viewer-tauri/commits/main
+[commits-shield]: https://img.shields.io/github/commit-activity/y/matthiasbalke/media-viewer.svg
+[commits]: https://github.com/matthiasbalke/media-viewer/commits/main
 
-[issue]: https://github.com/matthiasbalke/media-viewer-tauri/issues
+[issue]: https://github.com/matthiasbalke/media-viewer/issues
 [matthiasbalke]: https://github.com/matthiasbalke
-[contributors]: https://github.com/matthiasbalke/media-viewer-tauri/graphs/contributors
+[contributors]: https://github.com/matthiasbalke/media-viewer/graphs/contributors
