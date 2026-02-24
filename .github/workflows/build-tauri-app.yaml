@@ -1,4 +1,7 @@
 name: build tauri app
+permissions:
+  # needs write as soon as it creates releases
+  contents: read
 
 on:
   push:
