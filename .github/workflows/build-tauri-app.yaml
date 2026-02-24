@@ -67,9 +67,9 @@ jobs:
             src-tauri/target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - run: cd src-tauri && cargo build
+      - run: cd src-tauri && cargo build --release
         name: compile backend
-      - run: cd src-tauri && cargo test
+      - run: cd src-tauri && cargo test --release
         name: run backend tests
 
       - run: bun install
