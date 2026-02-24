@@ -117,7 +117,7 @@
                     <h3
                         class="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-4"
                     >
-                        Cache Management
+                        Cache
                     </h3>
 
                     <div class="space-y-4">
@@ -128,8 +128,11 @@
                                 </p>
                                 <p class="text-xs text-zinc-500 mt-1 max-w-sm">
                                     Remove cached thumbnails for media files
-                                    that no longer exist on disk. This can help
-                                    free up storage space.
+                                    that no longer exist on disk or from folders
+                                    that got removed from media viewer.
+                                </p>
+                                <p class="text-xs text-zinc-500 mt-1 max-w-sm">
+                                    This can help free up storage space.
                                 </p>
                             </div>
                             <button
@@ -151,12 +154,14 @@
                         <div class="flex items-start justify-between">
                             <div>
                                 <p class="text-sm font-medium text-red-400">
-                                    Clear Entire Cache
+                                    Clear entire Cache
                                 </p>
                                 <p class="text-xs text-zinc-500 mt-1 max-w-sm">
-                                    Delete all generated thumbnails. They will
-                                    be regenerated the next time you browse your
-                                    media folders.
+                                    Delete all generated thumbnails.
+                                </p>
+                                <p class="text-xs text-zinc-500 mt-1 max-w-sm">
+                                    They will be regenerated the next time you
+                                    browse your media folders.
                                 </p>
                             </div>
                             <button
