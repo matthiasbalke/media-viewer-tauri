@@ -124,12 +124,13 @@
                         <div class="flex items-start justify-between gap-4">
                             <div>
                                 <p class="text-sm font-medium text-zinc-200">
-                                    Orphan Thumbnails
+                                    Remove orphan thumbnails
                                 </p>
                                 <p class="text-xs text-zinc-500 mt-1 max-w-sm">
-                                    Remove cached thumbnails for media files
-                                    that no longer exist on disk or from folders
-                                    that got removed from media viewer.
+                                    Remove thumbnails for media files that no
+                                    longer exist on disk or thumbnails generated
+                                    for folders that got removed from media
+                                    viewer.
                                 </p>
                                 <p class="text-xs text-zinc-500 mt-1 max-w-sm">
                                     This can help free up storage space.
@@ -154,14 +155,16 @@
                         <div class="flex items-start justify-between gap-4">
                             <div>
                                 <p class="text-sm font-medium text-red-400">
-                                    Clear entire Cache
+                                    Clear entire cache
                                 </p>
                                 <p class="text-xs text-zinc-500 mt-1 max-w-sm">
                                     Delete all generated thumbnails.
                                 </p>
                                 <p class="text-xs text-zinc-500 mt-1 max-w-sm">
                                     They will be regenerated the next time you
-                                    browse your media folders.
+                                    browse your media folders. This might take a
+                                    long time, depending on your collection
+                                    size.
                                 </p>
                             </div>
                             <button
