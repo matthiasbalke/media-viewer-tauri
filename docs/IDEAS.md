@@ -11,10 +11,10 @@
     * deleting removed collections
 
 ## Settings
-* Settings Page > Cache > Clean Orphans
-  * Instead of cleaning orphans/removed collections on start.
-  * Might be slow when huge collections are cached.
-* Settings Page > Cache > Clean All Cache
+* [x] Settings Page > Cache > Clean Orphans
+  * [x] Instead of cleaning orphans/removed collections on start.
+    * Might be slow when huge collections are cached.
+* [x] Settings Page > Cache > Clean All Cache
 
 ## Viewing
 * Image Format Support: HEIC, CR2
