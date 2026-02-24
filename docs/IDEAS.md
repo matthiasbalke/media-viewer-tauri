@@ -35,10 +35,14 @@
 ## GitHub Actions
 * release workflow
   * attach distributions to github release
+    * use https://github.com/tauri-apps/tauri-action
   * create release notes
 
 * faster feedback for PRs
   * do we really need to build the hole distribution, on all os's to verify a PR?
+
+* code coverage (look at: cargo-llvm-cov)
+  * https://github.com/Swatinem/rust-cache/blob/master/.github/workflows/coverage.yml
 
 * automatic code review
 
