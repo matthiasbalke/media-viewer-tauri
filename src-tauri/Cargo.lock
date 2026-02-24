@@ -2348,6 +2348,7 @@ dependencies = [
  "tauri-plugin-persisted-scope",
  "tauri-plugin-store",
  "tauri-plugin-window-state",
+ "tempfile",
  "tokio",
 ]
 
