@@ -58,8 +58,11 @@ jobs:
         run: choco install nsis -y
 
 
+      - run: cd src-tauri && cargo build
+        name: compile backend
       - run: cd src-tauri && cargo test
         name: run backend tests
+
       - run: bun install
         name: install frontend dependencies
       - run: bun run check
@@ -94,3 +97,12 @@ jobs:
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/rpm/*.rpm
             src-tauri/target/release/bundle/appimage/*.AppImage
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
