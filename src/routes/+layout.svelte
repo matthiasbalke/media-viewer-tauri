@@ -6,9 +6,22 @@
   import StatusBar from "$lib/components/StatusBar.svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import SettingsModal from "$lib/components/SettingsModal.svelte";
+
+  onMount(() => {
+    // Listen for the native menu shortcut event to open settings
+    const unlistenPromise = listen("open-settings", () => {
+      showSettings = true;
+    });
+
+    return () => {
+      // Cleanup the event listener when component unmounts
+      unlistenPromise.then((unlisten) => unlisten());
+    };
+  });
 
   let { children } = $props();
 
