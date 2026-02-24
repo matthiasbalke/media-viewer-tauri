@@ -45,8 +45,10 @@
   * https://github.com/Swatinem/rust-cache/blob/master/.github/workflows/coverage.yml
 
 * automatic code review
+  * [x] CodeQL
+  * others?
 
-* add dependabot
+* [x] add dependabot
 
 * add code quality analysis, to check the AI code
 
