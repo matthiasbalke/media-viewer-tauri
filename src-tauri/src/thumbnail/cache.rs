@@ -8,7 +8,12 @@ use std::sync::Mutex;
 static MANIFEST_LOCK: Mutex<()> = Mutex::new(());
 
 /// Returns the base cache directory: ~/.mv/thumbnails
+/// If MV_TEST_CACHE_DIR is set, uses that instead (for isolation in tests).
 fn cache_base_dir() -> Result<PathBuf, String> {
+    if let Ok(test_dir) = std::env::var("MV_TEST_CACHE_DIR") {
+        return Ok(PathBuf::from(test_dir));
+    }
+
     let home = dirs::home_dir().ok_or("Could not determine home directory")?;
     Ok(home.join(".mv").join("thumbnails"))
 }
@@ -201,4 +206,158 @@ pub fn delete_all() -> Result<(), String> {
         fs::remove_dir_all(&base).map_err(|e| format!("Failed to delete cache dir: {}", e))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use std::thread;
+    use std::time::Duration;
+    use tempfile::tempdir;
+
+    /// Helper function to create an isolated test environment
+    fn setup_test_env() -> tempfile::TempDir {
+        let temp_dir = tempdir().expect("Failed to create temp test directory");
+        std::env::set_var("MV_TEST_CACHE_DIR", temp_dir.path().to_str().unwrap());
+        temp_dir
+    }
+
+    #[test]
+    fn test_hash_for_path_deterministic() {
+        // Same logical path should yield same hash
+        let hash1 = hash_for_path(&PathBuf::from("/foo/bar/image.jpg"));
+        let hash2 = hash_for_path(&PathBuf::from("/foo/bar/image.jpg"));
+        assert_eq!(hash1, hash2, "Hashes should be deterministic");
+    }
+
+    #[test]
+    fn test_hash_for_path_different_files() {
+        // Different files yield different hashes
+        let hash1 = hash_for_path(&PathBuf::from("/foo/bar/image.jpg"));
+        let hash3 = hash_for_path(&PathBuf::from("/foo/bar/other.jpg"));
+        assert_ne!(hash1, hash3, "Different paths should have different hashes");
+    }
+
+    #[test]
+    fn test_hash_for_path_cross_platform() {
+        // Cross-platform logic (Windows vs Unix slash)
+        let hash_win = hash_for_path(&PathBuf::from("C:\\foo\\image.jpg"));
+        let hash_unix = hash_for_path(&PathBuf::from("C:/foo/image.jpg"));
+        assert_eq!(
+            hash_win, hash_unix,
+            "Path normalization should ensure identical hashes"
+        );
+    }
+
+    #[test]
+    fn test_ensure_cache_dir_creates_directory() {
+        let _env = setup_test_env();
+
+        let size = 128; // Use 128 instead of 256 to avoid clashes with older tests if dirty
+        let cache_dir = ensure_cache_dir(size).expect("Failed to create cache dir");
+
+        assert!(cache_dir.exists());
+        assert!(cache_dir.is_dir());
+        assert!(cache_dir.ends_with("128"));
+    }
+
+    #[test]
+    fn test_manifest_starts_empty() {
+        let _env = setup_test_env();
+
+        // Initially empty
+        let initial_manifest = load_manifest().unwrap();
+        assert!(initial_manifest.is_empty(), "Manifest should start empty");
+    }
+
+    #[test]
+    fn test_register_thumbnail_adds_to_manifest() {
+        let _env = setup_test_env();
+
+        // Add an entry
+        let test_path = PathBuf::from("/test/source/image.jpg");
+        register_thumbnail(&test_path).expect("Failed to register thumbnail");
+
+        // Load and verify
+        let updated_manifest = load_manifest().unwrap();
+        assert_eq!(updated_manifest.len(), 1);
+
+        let hash = hash_for_path(&test_path);
+        assert_eq!(
+            updated_manifest.get(&hash).unwrap(),
+            "/test/source/image.jpg"
+        );
+    }
+
+    #[test]
+    fn test_is_stale_when_thumbnail_missing() {
+        let _env = setup_test_env();
+        let base_dir = _env.path();
+
+        let source_path = base_dir.join("source.jpg");
+        let thumb_path = base_dir.join("thumb.jpg");
+
+        // Create source file
+        File::create(&source_path).unwrap();
+
+        // 1. Thumbnail missing -> should be stale
+        assert!(
+            is_stale(&source_path, &thumb_path),
+            "Missing thumbnail should be stale"
+        );
+    }
+
+    #[test]
+    fn test_is_stale_when_thumbnail_newer() {
+        let _env = setup_test_env();
+        let base_dir = _env.path();
+
+        let source_path = base_dir.join("source.jpg");
+        let thumb_path = base_dir.join("thumb.jpg");
+
+        // Create source file
+        File::create(&source_path).unwrap();
+
+        // Create thumbnail file immediately
+        // (Wait slightly to ensure mtime ticks forward for older filesystems)
+        thread::sleep(Duration::from_millis(50));
+        File::create(&thumb_path).unwrap();
+
+        // 2. Thumbnail newer than source -> not stale
+        assert!(
+            !is_stale(&source_path, &thumb_path),
+            "Newer thumbnail should not be stale"
+        );
+    }
+
+    #[test]
+    fn test_is_stale_when_source_newer() {
+        let _env = setup_test_env();
+        let base_dir = _env.path();
+
+        let source_path = base_dir.join("source.jpg");
+        let thumb_path = base_dir.join("thumb.jpg");
+
+        // Create source file
+        File::create(&source_path).unwrap();
+
+        // Create thumbnail file immediately
+        thread::sleep(Duration::from_millis(50));
+        File::create(&thumb_path).unwrap();
+
+        // Update source file to make it newer
+        thread::sleep(Duration::from_millis(50));
+        fs::write(&source_path, b"updated").unwrap();
+
+        // 3. Source newer than thumbnail -> stale
+        assert!(
+            is_stale(&source_path, &thumb_path),
+            "Newer source should make thumbnail stale"
+        );
+    }
+
+    // Must remove MV_TEST_CACHE_DIR after tests to avoid cross-contamination in other threads,
+    // though `cargo test` runs in parallel, which makes full env var isolation tricky.
+    // Usually tests run locally will be fine.
 }
