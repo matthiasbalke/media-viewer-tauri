@@ -32,13 +32,6 @@
   let mediaFiles: MediaFile[] = $state([]);
   let showSettings = $state(false);
 
-  onMount(async () => {
-    // Background cleanup of orphan thumbnails
-    invoke("cleanup_orphan_thumbnails").catch((e: unknown) =>
-      console.error("Orphan thumbnail cleanup failed:", e),
-    );
-  });
-
   // Item count from media grid
   let mediaItemCount: number = $state(0);
 
