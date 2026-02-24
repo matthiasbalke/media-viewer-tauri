@@ -5,13 +5,32 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+#[cfg(test)]
+use std::cell::RefCell;
+
 static MANIFEST_LOCK: Mutex<()> = Mutex::new(());
 
+#[cfg(test)]
+thread_local! {
+    static TEST_CACHE_DIR: RefCell<Option<PathBuf>> = RefCell::new(None);
+}
+
+/// Overrides the base cache directory for testing purposes.
+#[cfg(test)]
+pub(crate) fn set_test_cache_dir(path: Option<PathBuf>) {
+    TEST_CACHE_DIR.with(|dir| {
+        *dir.borrow_mut() = path;
+    });
+}
+
 /// Returns the base cache directory: ~/.mv/thumbnails
-/// If MV_TEST_CACHE_DIR is set, uses that instead (for isolation in tests).
+/// If TEST_CACHE_DIR is set, uses that instead (for isolation in tests).
 fn cache_base_dir() -> Result<PathBuf, String> {
-    if let Ok(test_dir) = std::env::var("MV_TEST_CACHE_DIR") {
-        return Ok(PathBuf::from(test_dir));
+    #[cfg(test)]
+    {
+        if let Some(test_dir) = TEST_CACHE_DIR.with(|dir| dir.borrow().clone()) {
+            return Ok(test_dir);
+        }
     }
 
     let home = dirs::home_dir().ok_or("Could not determine home directory")?;
@@ -217,10 +236,21 @@ mod tests {
     use tempfile::tempdir;
 
     /// Helper function to create an isolated test environment
-    fn setup_test_env() -> tempfile::TempDir {
+    /// Automatically cleans up the global override when dropped.
+    struct TestEnvGuard {
+        pub temp_dir: tempfile::TempDir,
+    }
+
+    impl Drop for TestEnvGuard {
+        fn drop(&mut self) {
+            set_test_cache_dir(None);
+        }
+    }
+
+    fn setup_test_env() -> TestEnvGuard {
         let temp_dir = tempdir().expect("Failed to create temp test directory");
-        std::env::set_var("MV_TEST_CACHE_DIR", temp_dir.path().to_str().unwrap());
-        temp_dir
+        set_test_cache_dir(Some(temp_dir.path().to_path_buf()));
+        TestEnvGuard { temp_dir }
     }
 
     #[test]
@@ -293,7 +323,7 @@ mod tests {
     #[test]
     fn test_is_stale_when_thumbnail_missing() {
         let _env = setup_test_env();
-        let base_dir = _env.path();
+        let base_dir = _env.temp_dir.path();
 
         let source_path = base_dir.join("source.jpg");
         let thumb_path = base_dir.join("thumb.jpg");
@@ -311,7 +341,7 @@ mod tests {
     #[test]
     fn test_is_stale_when_thumbnail_newer() {
         let _env = setup_test_env();
-        let base_dir = _env.path();
+        let base_dir = _env.temp_dir.path();
 
         let source_path = base_dir.join("source.jpg");
         let thumb_path = base_dir.join("thumb.jpg");
@@ -334,7 +364,7 @@ mod tests {
     #[test]
     fn test_is_stale_when_source_newer() {
         let _env = setup_test_env();
-        let base_dir = _env.path();
+        let base_dir = _env.temp_dir.path();
 
         let source_path = base_dir.join("source.jpg");
         let thumb_path = base_dir.join("thumb.jpg");
