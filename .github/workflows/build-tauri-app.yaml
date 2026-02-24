@@ -36,6 +36,10 @@ jobs:
           # APT packages to install
           packages: libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
+      - name: Install NSIS on Windows
+        if: startsWith(matrix.os, 'windows')
+        run: choco install nsis -y
+
       - name: Setup Rust environment
         uses: dtolnay/rust-toolchain@1.93.0
 
@@ -53,12 +57,27 @@ jobs:
           # The version of Bun to install. (e.g. "latest", "canary", "1.0.0", "1.0.x", <sha>)
           bun-version: 1.1.19
 
-      - name: Install NSIS on Windows
-        if: startsWith(matrix.os, 'windows')
-        run: choco install nsis -y
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - run: cd src-tauri && cargo build --release
+        name: compile backend
+      - run: cd src-tauri && cargo test --release
+        name: run backend tests
 
       - run: bun install
+        name: install frontend dependencies
+      - run: bun run check
+        name: generate base config in ./.svelte-kit/tsconfig.json
       - run: bun tauri build
+        name: create bundles
 
       - name: Upload macOS bundle artifacts
         uses: actions/upload-artifact@v4

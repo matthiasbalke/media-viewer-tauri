@@ -170,3 +170,44 @@ impl ThumbnailService {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_is_supported_valid_extensions() {
+        // Valid extensions
+        assert!(ThumbnailService::is_supported(&PathBuf::from("image.jpg")));
+        assert!(ThumbnailService::is_supported(&PathBuf::from("image.JPEG")));
+        assert!(ThumbnailService::is_supported(&PathBuf::from("image.png")));
+        assert!(ThumbnailService::is_supported(&PathBuf::from("photo.gif")));
+        assert!(ThumbnailService::is_supported(&PathBuf::from("PIC.BMP")));
+        assert!(ThumbnailService::is_supported(&PathBuf::from("test.webp")));
+        assert!(ThumbnailService::is_supported(&PathBuf::from("test.tiff")));
+        assert!(ThumbnailService::is_supported(&PathBuf::from("test.ico")));
+    }
+
+    #[test]
+    fn test_is_supported_invalid_extensions() {
+        // Invalid extensions
+        assert!(!ThumbnailService::is_supported(&PathBuf::from("doc.txt")));
+        assert!(!ThumbnailService::is_supported(&PathBuf::from("doc.pdf")));
+        assert!(!ThumbnailService::is_supported(&PathBuf::from(
+            "image.heic"
+        ))); // Not currently in SUPPORTED_EXTENSIONS
+        assert!(!ThumbnailService::is_supported(&PathBuf::from("video.mp4")));
+    }
+
+    #[test]
+    fn test_is_supported_edge_cases() {
+        // Edge cases
+        assert!(!ThumbnailService::is_supported(&PathBuf::from(
+            "no_extension_file"
+        )));
+        assert!(!ThumbnailService::is_supported(&PathBuf::from(
+            ".hidden_no_ext"
+        )));
+    }
+}
