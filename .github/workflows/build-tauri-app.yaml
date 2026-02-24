@@ -43,6 +43,16 @@ jobs:
         if: startsWith(matrix.os, 'windows')
         run: choco install nsis -y
 
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Setup Rust environment
         uses: dtolnay/rust-toolchain@1.93.0
 
@@ -59,16 +69,6 @@ jobs:
         with:
           # The version of Bun to install. (e.g. "latest", "canary", "1.0.0", "1.0.x", <sha>)
           bun-version: 1.1.19
-
-      - uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            src-tauri/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - run: cd src-tauri && cargo build --release
         name: compile backend
