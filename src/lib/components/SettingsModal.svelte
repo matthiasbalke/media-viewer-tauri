@@ -121,7 +121,7 @@
                     </h3>
 
                     <div class="space-y-4">
-                        <div class="flex items-start justify-between">
+                        <div class="flex items-start justify-between gap-4">
                             <div>
                                 <p class="text-sm font-medium text-zinc-200">
                                     Orphan Thumbnails
@@ -136,7 +136,7 @@
                                 </p>
                             </div>
                             <button
-                                class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-sm font-medium text-white rounded-lg transition-colors border border-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                class="shrink-0 whitespace-nowrap px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-sm font-medium text-white rounded-lg transition-colors border border-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                 onclick={handleCleanup}
                                 disabled={isCleaning}
                             >
@@ -151,7 +151,7 @@
 
                         <div class="h-px bg-zinc-800/50 my-2"></div>
 
-                        <div class="flex items-start justify-between">
+                        <div class="flex items-start justify-between gap-4">
                             <div>
                                 <p class="text-sm font-medium text-red-400">
                                     Clear entire Cache
@@ -165,7 +165,7 @@
                                 </p>
                             </div>
                             <button
-                                class="px-4 py-2 {confirmDeleteAll
+                                class="shrink-0 px-4 py-2 {confirmDeleteAll
                                     ? 'bg-red-600 hover:bg-red-500 border-red-500 text-white'
                                     : 'bg-red-950/30 hover:bg-red-900/40 text-red-400 border-red-900/50'} text-sm font-medium rounded-lg transition-colors border disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                                 onclick={handleDeleteAll}
