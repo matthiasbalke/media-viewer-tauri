@@ -58,6 +58,7 @@ jobs:
         run: choco install nsis -y
 
       - run: bun install
+      - run: cd src-tauri && cargo test
       - run: bun tauri build
 
       - name: Upload macOS bundle artifacts
