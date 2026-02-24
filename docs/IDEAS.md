@@ -33,6 +33,8 @@
   * option to support more languages via pull requests
 
 ## GitHub Actions
+* [x] block merging until github actions have successfully finished
+
 * release workflow
   * attach distributions to github release
   * create release notes
@@ -55,4 +57,3 @@
 
 ### project which uses ffmpeq
 * https://github.com/neosubhamoy/neodlp?tab=readme-ov-file
-
