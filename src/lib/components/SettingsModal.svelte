@@ -1,7 +1,8 @@
 <script lang="ts">
     import { fade, scale } from "svelte/transition";
     import { invoke } from "@tauri-apps/api/core";
-    import { open } from "@tauri-apps/plugin-dialog";
+    import { open as openDialog } from "@tauri-apps/plugin-dialog";
+    import { openPath } from "@tauri-apps/plugin-opener";
     import { settingsStore } from "$lib/stores/settings.svelte";
 
     let { onClose } = $props<{ onClose: () => void }>();
@@ -10,7 +11,7 @@
     let cleanMessage = $state("");
 
     async function handleChangeCacheDir() {
-        const selected = await open({
+        const selected = await openDialog({
             directory: true,
             multiple: false,
             title: "Select Thumbnail Cache Directory",
@@ -19,6 +20,16 @@
         if (selected && typeof selected === "string") {
             const normalized = selected.replace(/\\/g, "/");
             await settingsStore.setCacheBaseDir(normalized);
+        }
+    }
+
+    async function handleOpenCacheDir() {
+        if (settingsStore.cacheBaseDir) {
+            try {
+                await openPath(settingsStore.cacheBaseDir);
+            } catch (e) {
+                console.error("Failed to open cache dir", e);
+            }
         }
     }
 
@@ -156,12 +167,20 @@
                                         "Loading default..."}
                                 </p>
                             </div>
-                            <button
-                                class="shrink-0 whitespace-nowrap px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-sm font-medium text-white rounded-lg transition-colors border border-zinc-700"
-                                onclick={handleChangeCacheDir}
-                            >
-                                Change...
-                            </button>
+                            <div class="flex flex-col gap-2 shrink-0">
+                                <button
+                                    class="whitespace-nowrap px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-sm font-medium text-white rounded-lg transition-colors border border-zinc-700"
+                                    onclick={handleChangeCacheDir}
+                                >
+                                    Change...
+                                </button>
+                                <button
+                                    class="whitespace-nowrap px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-sm font-medium text-white rounded-lg transition-colors border border-zinc-700"
+                                    onclick={handleOpenCacheDir}
+                                >
+                                    Open
+                                </button>
+                            </div>
                         </div>
 
                         <div class="h-px bg-zinc-800/50 my-2"></div>
