@@ -83,7 +83,7 @@ jobs:
         name: create bundles
 
       - name: Upload macOS bundle artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: startsWith(matrix.os, 'macOS')
         with:
           name: tauri-bundles-${{ matrix.os }}
@@ -92,7 +92,7 @@ jobs:
             src-tauri/target/release/bundle/dmg/*.dmg
 
       - name: Upload Windows bundle artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: startsWith(matrix.os, 'windows')
         with:
           name: tauri-bundles-${{ matrix.os }}
@@ -101,7 +101,7 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.exe
 
       - name: Upload Linux bundle artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: startsWith(matrix.os, 'ubuntu')
         with:
           name: tauri-bundles-${{ matrix.os }}
