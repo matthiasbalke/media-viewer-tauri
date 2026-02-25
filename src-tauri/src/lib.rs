@@ -6,12 +6,6 @@ use tauri::{
 };
 use thumbnail::ThumbnailService;
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 #[tauri::command]
 async fn generate_thumbnails(
     dir: String,
@@ -117,7 +111,6 @@ pub fn run() {
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
-            greet,
             generate_thumbnails,
             cleanup_thumbnails_for_dir,
             cleanup_orphan_thumbnails,
