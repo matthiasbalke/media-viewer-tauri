@@ -83,7 +83,12 @@
   async function removeRootPath(pathToRemove: string) {
     // Clean up thumbnails for this directory tree
     try {
-      await invoke("cleanup_thumbnails_for_dir", { dir: pathToRemove });
+      if (settingsStore.cacheBaseDir) {
+        await invoke("cleanup_thumbnails_for_dir", {
+          dir: pathToRemove,
+          cacheBaseDir: settingsStore.cacheBaseDir,
+        });
+      }
     } catch (e) {
       console.error("Thumbnail cleanup failed:", e);
     }

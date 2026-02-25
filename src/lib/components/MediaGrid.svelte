@@ -4,6 +4,7 @@
     import { convertFileSrc } from "@tauri-apps/api/core";
     import { listen } from "@tauri-apps/api/event";
     import { onDestroy } from "svelte";
+    import { settingsStore } from "$lib/stores/settings.svelte";
 
     interface MediaFile {
         name: string;
@@ -159,10 +160,16 @@
 
             // Trigger background thumbnail generation
             try {
-                await invoke("generate_thumbnails", {
-                    dir: dirPath,
-                    sessionId: currentSessionId,
-                });
+                // cacheBaseDir should be loaded by now due to $effect wait
+                if (settingsStore.cacheBaseDir) {
+                    await invoke("generate_thumbnails", {
+                        dir: dirPath,
+                        sessionId: currentSessionId,
+                        cacheBaseDir: settingsStore.cacheBaseDir
+                    });
+                } else {
+                    console.error("Settings not ready, cannot generate thumbnails.");
+                }
             } catch (e) {
                 console.error("Thumbnail generation failed:", e);
             }
@@ -175,11 +182,11 @@
         }
     }
 
-    // Reload when path changes
+    // Reload when path changes or settings are ready
     $effect(() => {
-        if (path) {
+        if (path && settingsStore.ready && settingsStore.cacheBaseDir) {
             loadMedia(path);
-        } else {
+        } else if (!path) {
             files = [];
             currentSessionId = null;
         }

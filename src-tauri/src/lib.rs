@@ -10,28 +10,29 @@ use thumbnail::ThumbnailService;
 async fn generate_thumbnails(
     dir: String,
     session_id: u64,
+    cache_base_dir: String,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    ThumbnailService::generate_for_dir(dir, session_id, app_handle).await
+    ThumbnailService::generate_for_dir(dir, session_id, cache_base_dir, app_handle).await
 }
 
 #[tauri::command]
-async fn cleanup_thumbnails_for_dir(dir: String) -> Result<u32, String> {
-    tokio::task::spawn_blocking(move || thumbnail::cleanup_for_prefix(&dir))
+async fn cleanup_thumbnails_for_dir(dir: String, cache_base_dir: String) -> Result<u32, String> {
+    tokio::task::spawn_blocking(move || thumbnail::cleanup_for_prefix(&dir, &cache_base_dir))
         .await
         .map_err(|e| format!("Task join error: {}", e))?
 }
 
 #[tauri::command]
-async fn cleanup_orphan_thumbnails() -> Result<u32, String> {
-    tokio::task::spawn_blocking(|| thumbnail::cleanup_orphans())
+async fn cleanup_orphan_thumbnails(cache_base_dir: String) -> Result<u32, String> {
+    tokio::task::spawn_blocking(move || thumbnail::cleanup_orphans(&cache_base_dir))
         .await
         .map_err(|e| format!("Task join error: {}", e))?
 }
 
 #[tauri::command]
-async fn delete_all_thumbnails() -> Result<(), String> {
-    tokio::task::spawn_blocking(|| thumbnail::delete_all())
+async fn delete_all_thumbnails(cache_base_dir: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || thumbnail::delete_all(&cache_base_dir))
         .await
         .map_err(|e| format!("Task join error: {}", e))?
 }

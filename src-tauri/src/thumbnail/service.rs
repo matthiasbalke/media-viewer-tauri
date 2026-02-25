@@ -1,7 +1,7 @@
 use super::cache;
 use super::normalize_path;
 use serde::Serialize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::Semaphore;
@@ -35,8 +35,8 @@ impl ThumbnailService {
 
     /// Generates a thumbnail for a single file.
     /// Returns the thumbnail path on success.
-    fn generate_single(source: &Path) -> Result<String, String> {
-        let thumb_path = cache::thumbnail_path(source, THUMBNAIL_SIZE)?;
+    fn generate_single(source: &Path, cache_base_dir: &Path) -> Result<String, String> {
+        let thumb_path = cache::thumbnail_path(source, THUMBNAIL_SIZE, cache_base_dir)?;
 
         // Check if cached thumbnail is still valid
         if thumb_path.exists() && !cache::is_stale(source, &thumb_path) {
@@ -44,7 +44,7 @@ impl ThumbnailService {
         }
 
         // Ensure cache directory exists
-        cache::ensure_cache_dir(THUMBNAIL_SIZE)?;
+        cache::ensure_cache_dir(THUMBNAIL_SIZE, cache_base_dir)?;
 
         // Open and resize the image
         let img = image::open(source).map_err(|e| {
@@ -63,7 +63,7 @@ impl ThumbnailService {
             .map_err(|e| format!("Failed to save thumbnail: {}", e))?;
 
         // Register in manifest for cleanup tracking
-        cache::register_thumbnail(source)?;
+        cache::register_thumbnail(source, cache_base_dir)?;
 
         Ok(thumb_path.to_string_lossy().to_string())
     }
@@ -73,6 +73,7 @@ impl ThumbnailService {
     pub async fn generate_for_dir(
         dir: String,
         session_id: u64,
+        cache_base_dir: String,
         app_handle: AppHandle,
     ) -> Result<(), String> {
         let dir_path = Path::new(&dir);
@@ -94,6 +95,7 @@ impl ThumbnailService {
             let path = entry.path();
             let app = app_handle.clone();
             let sem = semaphore.clone();
+            let cache_base_dir_worker = cache_base_dir.clone();
 
             let handle = tokio::spawn(async move {
                 let _permit = sem.acquire().await.unwrap();
@@ -116,7 +118,8 @@ impl ThumbnailService {
                 // Run blocking image work off the async thread
                 let result = tokio::task::spawn_blocking({
                     let path = path.clone();
-                    move || Self::generate_single(&path)
+                    let cache_base_dir_owned = PathBuf::from(cache_base_dir_worker);
+                    move || Self::generate_single(&path, &cache_base_dir_owned)
                 })
                 .await;
 
