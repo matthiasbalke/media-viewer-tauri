@@ -56,6 +56,10 @@ jobs:
       - name: Setup Rust environment
         uses: dtolnay/rust-toolchain@1.93.0
 
+      - name: Install cargo-llvm-cov
+        if: startsWith(matrix.os, 'ubuntu')
+        uses: taiki-e/install-action@cargo-llvm-cov
+
       - name: Setup Node.js environment
         uses: actions/setup-node@v6.2.0
         with:
@@ -74,6 +78,18 @@ jobs:
         name: compile backend
       - run: cd src-tauri && cargo test --release
         name: run backend tests
+
+      - name: Generate code coverage
+        if: startsWith(matrix.os, 'ubuntu')
+        run: cd src-tauri && cargo llvm-cov --all-features --workspace --lcov --output-path target/lcov.info
+
+      - name: Upload coverage to Codecov
+        if: startsWith(matrix.os, 'ubuntu')
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # required for private repos or protected branches
+          files: src-tauri/target/lcov.info
+          fail_ci_if_error: true
 
       - run: bun install
         name: install frontend dependencies
