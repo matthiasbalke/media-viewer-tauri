@@ -29,12 +29,10 @@ fn hash_for_path(source: &Path) -> String {
 }
 
 /// Returns the path to the thumbnail for a given source file.
-/// Format: <cache_base_dir>/<size>/<hash>.jpg
-pub fn thumbnail_path(source: &Path, size: u32, cache_base_dir: &Path) -> Result<PathBuf, String> {
+/// Format: <cache_base_dir>/<hash>.jpg
+pub fn thumbnail_path(source: &Path, cache_base_dir: &Path) -> Result<PathBuf, String> {
     let hash = hash_for_path(source);
-    Ok(cache_base_dir
-        .join(size.to_string())
-        .join(format!("{}.jpg", hash)))
+    Ok(cache_base_dir.join(format!("{}.jpg", hash)))
 }
 
 /// Returns true if the thumbnail is stale (source was modified after the thumbnail).
@@ -52,39 +50,37 @@ pub fn is_stale(source: &Path, thumbnail: &Path) -> bool {
     source_mtime > thumb_mtime
 }
 
-/// Creates the cache directory for the given thumbnail size.
-pub fn ensure_cache_dir(size: u32, cache_base_dir: &Path) -> Result<PathBuf, String> {
-    let cache_dir = cache_base_dir.join(size.to_string());
-
-    if cache_dir.exists() {
-        if !cache_dir.is_dir() {
+/// Creates the base cache directory if it doesn't exist.
+pub fn ensure_cache_dir(cache_base_dir: &Path) -> Result<PathBuf, String> {
+    if cache_base_dir.exists() {
+        if !cache_base_dir.is_dir() {
             return Err(format!(
                 "Cache path exists but is not a directory: {}",
-                cache_dir.display()
+                cache_base_dir.display()
             ));
         }
     } else {
-        fs::create_dir_all(&cache_dir).map_err(|e| {
+        fs::create_dir_all(cache_base_dir).map_err(|e| {
             format!(
                 "Failed to create cache directory {}: {}",
-                cache_dir.display(),
+                cache_base_dir.display(),
                 e
             )
         })?;
     }
 
     // Verify we can write to the directory
-    let test_file = cache_dir.join(".write_test");
+    let test_file = cache_base_dir.join(".write_test");
     fs::write(&test_file, b"").map_err(|e| {
         format!(
             "Cache directory is not writable {}: {}",
-            cache_dir.display(),
+            cache_base_dir.display(),
             e
         )
     })?;
     let _ = fs::remove_file(&test_file);
 
-    Ok(cache_dir)
+    Ok(cache_base_dir.to_path_buf())
 }
 
 // --- Manifest management ---
@@ -140,16 +136,9 @@ pub fn cleanup_for_prefix(prefix: &str, cache_base_dir: &str) -> Result<u32, Str
 
     let mut removed = 0u32;
     for hash in &to_remove {
-        // Try to delete all size variants
-        if let Ok(entries) = fs::read_dir(base) {
-            for entry in entries.flatten() {
-                if entry.path().is_dir() {
-                    let thumb = entry.path().join(format!("{}.jpg", hash));
-                    if thumb.exists() {
-                        let _ = fs::remove_file(&thumb);
-                    }
-                }
-            }
+        let thumb = base.join(format!("{}.jpg", hash));
+        if thumb.exists() {
+            let _ = fs::remove_file(&thumb);
         }
         manifest.remove(hash);
         removed += 1;
@@ -175,16 +164,9 @@ pub fn cleanup_orphans(cache_base_dir: &str) -> Result<u32, String> {
 
     let mut removed = 0u32;
     for hash in &orphans {
-        // Delete all size variants
-        if let Ok(entries) = fs::read_dir(base) {
-            for entry in entries.flatten() {
-                if entry.path().is_dir() {
-                    let thumb = entry.path().join(format!("{}.jpg", hash));
-                    if thumb.exists() {
-                        let _ = fs::remove_file(&thumb);
-                    }
-                }
-            }
+        let thumb = base.join(format!("{}.jpg", hash));
+        if thumb.exists() {
+            let _ = fs::remove_file(&thumb);
         }
         manifest.remove(hash);
         removed += 1;
@@ -255,13 +237,10 @@ mod tests {
     fn test_ensure_cache_dir_creates_directory() {
         let env = setup_test_env();
 
-        let size = 128; // Use 128 instead of 256 to avoid clashes with older tests if dirty
-        let cache_dir =
-            ensure_cache_dir(size, env.temp_dir.path()).expect("Failed to create cache dir");
+        let cache_dir = ensure_cache_dir(env.temp_dir.path()).expect("Failed to create cache dir");
 
         assert!(cache_dir.exists());
         assert!(cache_dir.is_dir());
-        assert!(cache_dir.ends_with("128"));
     }
 
     #[test]
