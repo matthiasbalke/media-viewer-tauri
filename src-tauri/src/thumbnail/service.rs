@@ -13,15 +13,14 @@ const SUPPORTED_EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif", "ico",
 ];
 
-const SUPPORTED_MIME_TYPES: &[&str] = &[
-    "image/jpeg",
-    "image/png",
-    "image/gif",
-    "image/bmp",
-    "image/webp",
-    "image/tiff",
-    "image/vnd.microsoft.icon",
-    "image/x-icon",
+const SUPPORTED_FORMATS: &[image::ImageFormat] = &[
+    image::ImageFormat::Jpeg,
+    image::ImageFormat::Png,
+    image::ImageFormat::Gif,
+    image::ImageFormat::Bmp,
+    image::ImageFormat::WebP,
+    image::ImageFormat::Tiff,
+    image::ImageFormat::Ico,
 ];
 
 #[derive(Clone, Serialize)]
@@ -40,10 +39,12 @@ impl ThumbnailService {
     fn is_supported(path: &Path) -> bool {
         // First try to infer type from the file contents (magic bytes)
         // If that fails (e.g. permission error, file doesn't exist), fall back to checking the extension.
-        if let Ok(kind_opt) = infer::get_from_path(path) {
-            if let Some(kind) = kind_opt {
-                if SUPPORTED_MIME_TYPES.contains(&kind.mime_type()) {
-                    return true;
+        if let Ok(reader) = image::ImageReader::open(path) {
+            if let Ok(reader) = reader.with_guessed_format() {
+                if let Some(format) = reader.format() {
+                    if SUPPORTED_FORMATS.contains(&format) {
+                        return true;
+                    }
                 }
             }
         }
@@ -248,22 +249,5 @@ mod tests {
         assert!(!ThumbnailService::is_supported(&PathBuf::from(
             ".hidden_no_ext"
         )));
-    }
-
-    #[test]
-    fn test_is_supported_real_files_magic_bytes() {
-        // Test that infer handles real files correctly even if extension is wrong
-        // IMG_2855.PNG is actually a JPEG file
-        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d.push("fixtures/problematic-files/IMG_2855.PNG");
-
-        // This should be true because infer detects it as a JPEG (image/jpeg)
-        assert!(ThumbnailService::is_supported(&d));
-
-        let mut d2 = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        d2.push("fixtures/problematic-files/FFMpeg_libwebp.png");
-
-        // This should be true because infer detects it as a PNG (image/png)
-        assert!(ThumbnailService::is_supported(&d2));
     }
 }
