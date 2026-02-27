@@ -214,44 +214,62 @@ mod tests {
         )));
     }
 
-    #[test]
-    fn test_generate_single_jpg() {
-        // Paths
-        let source_path =
-            PathBuf::from("../src-tauri/fixtures/file-examples.com/file_example_JPG_100kB.jpg");
-        let cache_base_dir = std::env::temp_dir().join("media_viewer_test_cache");
+    macro_rules! test_generate_single {
+        ($name:ident, $filename:expr) => {
+            #[test]
+            fn $name() {
+                // Paths
+                let source_path = PathBuf::from(format!(
+                    "../src-tauri/fixtures/file-examples.com/{}",
+                    $filename
+                ));
+                let cache_base_dir = std::env::temp_dir()
+                    .join(format!("media_viewer_test_cache_{}", stringify!($name)));
 
-        // Clean up previous test cache if it exists
-        if cache_base_dir.exists() {
-            let _ = std::fs::remove_dir_all(&cache_base_dir);
-        }
+                // Clean up previous test cache if it exists
+                if cache_base_dir.exists() {
+                    let _ = std::fs::remove_dir_all(&cache_base_dir);
+                }
 
-        // Execute the function
-        let result = ThumbnailService::generate_single(&source_path, &cache_base_dir);
+                // Execute the function
+                let result = ThumbnailService::generate_single(&source_path, &cache_base_dir);
 
-        // Assertions
-        assert!(result.is_ok(), "generate_single failed: {:?}", result.err());
+                // Assertions
+                assert!(
+                    result.is_ok(),
+                    "generate_single failed for {}: {:?}",
+                    $filename,
+                    result.err()
+                );
 
-        let thumb_path_str = result.unwrap();
-        let thumb_path = PathBuf::from(thumb_path_str);
+                let thumb_path_str = result.unwrap();
+                let thumb_path = PathBuf::from(thumb_path_str);
 
-        assert!(
-            thumb_path.exists(),
-            "Thumbnail file does not exist at expected path"
-        );
+                assert!(
+                    thumb_path.exists(),
+                    "Thumbnail file does not exist at expected path"
+                );
 
-        // Ensure that the background image matches its dimensions.
-        let img = image::open(&thumb_path).expect("Failed to open generated thumbnail");
-        assert!(
-            img.width() <= super::THUMBNAIL_SIZE,
-            "Thumbnail width exceeds maximum"
-        );
-        assert!(
-            img.height() <= super::THUMBNAIL_SIZE,
-            "Thumbnail height exceeds maximum"
-        );
+                // Ensure that the background image matches its dimensions.
+                let img = image::open(&thumb_path).expect("Failed to open generated thumbnail");
+                assert!(
+                    img.width() <= super::THUMBNAIL_SIZE,
+                    "Thumbnail width exceeds maximum"
+                );
+                assert!(
+                    img.height() <= super::THUMBNAIL_SIZE,
+                    "Thumbnail height exceeds maximum"
+                );
 
-        // Cleanup
-        let _ = std::fs::remove_dir_all(&cache_base_dir);
+                // Cleanup
+                let _ = std::fs::remove_dir_all(&cache_base_dir);
+            }
+        };
     }
+
+    test_generate_single!(test_generate_single_jpg, "file_example_JPG_100kB.jpg");
+    test_generate_single!(test_generate_single_png, "file_example_PNG_500kB.png");
+    test_generate_single!(test_generate_single_gif, "file_example_GIF_500kB.gif");
+    test_generate_single!(test_generate_single_webp, "file_example_WEBP_250kB.webp");
+    test_generate_single!(test_generate_single_ico, "file_example_favicon.ico");
 }
