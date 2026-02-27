@@ -165,10 +165,12 @@
                     await invoke("generate_thumbnails", {
                         dir: dirPath,
                         sessionId: currentSessionId,
-                        cacheBaseDir: settingsStore.cacheBaseDir
+                        cacheBaseDir: settingsStore.cacheBaseDir,
                     });
                 } else {
-                    console.error("Settings not ready, cannot generate thumbnails.");
+                    console.error(
+                        "Settings not ready, cannot generate thumbnails.",
+                    );
                 }
             } catch (e) {
                 console.error("Thumbnail generation failed:", e);
