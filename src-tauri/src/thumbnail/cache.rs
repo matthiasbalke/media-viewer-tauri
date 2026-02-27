@@ -69,8 +69,8 @@ pub fn is_stale(source: &Path, thumbnail: &Path) -> bool {
 
 /// Creates the base cache directory if it doesn't exist.
 pub fn ensure_cache_dir(cache_base_dir: &Path) -> Result<PathBuf, String> {
-    if check_path.exists() {
-        if !check_path.is_dir() {
+    if cache_base_dir.exists() {
+        if !cache_base_dir.is_dir() {
             return Err(format!(
                 "Cache path exists but is not a directory: {}",
                 cache_base_dir.display()
