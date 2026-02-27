@@ -2337,6 +2337,7 @@ version = "0.1.0"
 dependencies = [
  "dirs",
  "image",
+ "infer",
  "serde",
  "serde_json",
  "tauri",

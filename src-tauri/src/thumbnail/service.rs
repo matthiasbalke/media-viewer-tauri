@@ -13,6 +13,17 @@ const SUPPORTED_EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif", "ico",
 ];
 
+const SUPPORTED_MIME_TYPES: &[&str] = &[
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/bmp",
+    "image/webp",
+    "image/tiff",
+    "image/vnd.microsoft.icon",
+    "image/x-icon",
+];
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ThumbnailUpdate {
@@ -25,8 +36,19 @@ struct ThumbnailUpdate {
 pub struct ThumbnailService;
 
 impl ThumbnailService {
-    /// Returns true if the file extension is in the supported list.
+    /// Returns true if the file is a supported image format by checking its magic bytes.
     fn is_supported(path: &Path) -> bool {
+        // First try to infer type from the file contents (magic bytes)
+        // If that fails (e.g. permission error, file doesn't exist), fall back to checking the extension.
+        if let Ok(kind_opt) = infer::get_from_path(path) {
+            if let Some(kind) = kind_opt {
+                if SUPPORTED_MIME_TYPES.contains(&kind.mime_type()) {
+                    return true;
+                }
+            }
+        }
+
+        // Fallback for files infer might miss but image crate might support
         path.extension()
             .and_then(|ext| ext.to_str())
             .map(|ext| SUPPORTED_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
