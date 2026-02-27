@@ -38,6 +38,7 @@
         <button
             class="filmstrip-thumb"
             class:active={file.path === selectedPath}
+            class:loaded={file.thumbnailState === "ready"}
             data-active={file.path === selectedPath}
             onclick={() => onSelect?.(file)}
             title={file.name}
@@ -111,6 +112,10 @@
 
     .filmstrip-thumb:hover {
         border-color: rgba(59, 130, 246, 0.5);
+    }
+
+    .filmstrip-thumb.loaded {
+        background: transparent;
     }
 
     .filmstrip-thumb.active {

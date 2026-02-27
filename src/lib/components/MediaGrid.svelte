@@ -231,7 +231,9 @@
         >
             {#each files as file}
                 <div
-                    class="group relative bg-zinc-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer"
+                    class="group relative rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer"
+                    class:bg-zinc-800={file.thumbnailState !== "ready"}
+                    class:bg-transparent={file.thumbnailState === "ready"}
                     style="height: {thumbnailSize}px;"
                     role="button"
                     tabindex="0"
