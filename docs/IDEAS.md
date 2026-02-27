@@ -17,10 +17,12 @@
 * [x] Settings Page > Cache > Clean All Cache
 
 ## Viewing
+* Zoom Images in View mode
 * Image Format Support: HEIC, CR2
 * Video Thumbnail Support: FFMPEG
+  * Use file_format crate to verify mime type of video files
+    https://docs.rs/file-format/latest/file_format/
 * Video Playback Support
-* Zoom Images in View mode
 
 ## Editing
 * Move media to trash
