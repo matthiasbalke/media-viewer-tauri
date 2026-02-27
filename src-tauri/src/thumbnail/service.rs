@@ -219,10 +219,9 @@ mod tests {
             #[test]
             fn $name() {
                 // Paths
-                let source_path = PathBuf::from(format!(
-                    "../src-tauri/fixtures/file-examples.com/{}",
-                    $filename
-                ));
+                let manifest_dir = env!("CARGO_MANIFEST_DIR");
+                let source_path = PathBuf::from(manifest_dir)
+                    .join(format!("fixtures/file-examples.com/{}", $filename));
                 let cache_base_dir = std::env::temp_dir()
                     .join(format!("media_viewer_test_cache_{}", stringify!($name)));
 
