@@ -1,5 +1,5 @@
 <script lang="ts">
-  import "../app.css";
+  import "../../app.css";
   import FolderTree from "$lib/components/FolderTree.svelte";
   import MediaGrid from "$lib/components/MediaGrid.svelte";
   import MediaViewer from "$lib/components/MediaViewer.svelte";
