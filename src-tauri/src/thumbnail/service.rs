@@ -68,14 +68,31 @@ impl ThumbnailService {
         // Ensure cache directory exists
         cache::ensure_cache_dir(THUMBNAIL_SIZE)?;
 
-        // Open and resize the image
-        let img = image::open(source).map_err(|e| {
-            format!(
-                "Failed to open image {}: {}",
-                normalize_path(&source.to_string_lossy()),
-                e
-            )
-        })?;
+        // Open and resize the image, ignoring file extension and inferring from magic bytes
+        let img = image::ImageReader::open(source)
+            .map_err(|e| {
+                format!(
+                    "Failed to open image {}: {}",
+                    normalize_path(&source.to_string_lossy()),
+                    e
+                )
+            })?
+            .with_guessed_format()
+            .map_err(|e| {
+                format!(
+                    "Failed to guess format for {}: {}",
+                    normalize_path(&source.to_string_lossy()),
+                    e
+                )
+            })?
+            .decode()
+            .map_err(|e| {
+                format!(
+                    "Failed to decode image {}: {}",
+                    normalize_path(&source.to_string_lossy()),
+                    e
+                )
+            })?;
 
         let thumbnail = img.thumbnail(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
 
@@ -231,5 +248,22 @@ mod tests {
         assert!(!ThumbnailService::is_supported(&PathBuf::from(
             ".hidden_no_ext"
         )));
+    }
+
+    #[test]
+    fn test_is_supported_real_files_magic_bytes() {
+        // Test that infer handles real files correctly even if extension is wrong
+        // IMG_2855.PNG is actually a JPEG file
+        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        d.push("fixtures/problematic-files/IMG_2855.PNG");
+
+        // This should be true because infer detects it as a JPEG (image/jpeg)
+        assert!(ThumbnailService::is_supported(&d));
+
+        let mut d2 = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        d2.push("fixtures/problematic-files/FFMpeg_libwebp.png");
+
+        // This should be true because infer detects it as a PNG (image/png)
+        assert!(ThumbnailService::is_supported(&d2));
     }
 }
