@@ -39,12 +39,10 @@ impl ThumbnailService {
     fn is_supported(path: &Path) -> bool {
         // First try to infer type from the file contents (magic bytes)
         // If that fails (e.g. permission error, file doesn't exist), fall back to checking the extension.
-        if let Ok(reader) = image::ImageReader::open(path) {
-            if let Ok(reader) = reader.with_guessed_format() {
-                if let Some(format) = reader.format() {
-                    if SUPPORTED_FORMATS.contains(&format) {
-                        return true;
-                    }
+        if let Ok(reader) = Self::get_image_reader(path) {
+            if let Some(format) = reader.format() {
+                if SUPPORTED_FORMATS.contains(&format) {
+                    return true;
                 }
             }
         }
@@ -56,8 +54,10 @@ impl ThumbnailService {
             .unwrap_or(false)
     }
 
-    /// Loads an image from a path, using magic bytes to correctly guess the format.
-    fn load_image(source: &Path) -> Result<image::DynamicImage, String> {
+    /// Opens an image, parses magic bytes to guess the format, and returns the reader.
+    fn get_image_reader(
+        source: &Path,
+    ) -> Result<image::ImageReader<std::io::BufReader<std::fs::File>>, String> {
         image::ImageReader::open(source)
             .map_err(|e| {
                 format!(
@@ -73,15 +73,18 @@ impl ThumbnailService {
                     normalize_path(&source.to_string_lossy()),
                     e
                 )
-            })?
-            .decode()
-            .map_err(|e| {
-                format!(
-                    "Failed to decode image {}: {}",
-                    normalize_path(&source.to_string_lossy()),
-                    e
-                )
             })
+    }
+
+    /// Loads an image from a path, using magic bytes to correctly guess the format.
+    fn load_image(source: &Path) -> Result<image::DynamicImage, String> {
+        Self::get_image_reader(source)?.decode().map_err(|e| {
+            format!(
+                "Failed to decode image {}: {}",
+                normalize_path(&source.to_string_lossy()),
+                e
+            )
+        })
     }
 
     /// Generates a thumbnail for a single file.
