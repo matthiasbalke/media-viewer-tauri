@@ -103,7 +103,13 @@ impl ThumbnailService {
         // Open and resize the image, ignoring file extension and inferring from magic bytes
         let img = Self::load_image(source)?;
 
-        let thumbnail = img.thumbnail(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
+        let (width, height) = (img.width(), img.height());
+
+        let thumbnail = if width <= THUMBNAIL_SIZE && height <= THUMBNAIL_SIZE {
+            img
+        } else {
+            img.thumbnail(THUMBNAIL_SIZE, THUMBNAIL_SIZE)
+        };
 
         // Save as JPEG
         thumbnail
