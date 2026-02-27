@@ -33,6 +33,34 @@ impl ThumbnailService {
             .unwrap_or(false)
     }
 
+    /// Loads an image from a path, using magic bytes to correctly guess the format.
+    fn load_image(source: &Path) -> Result<image::DynamicImage, String> {
+        image::ImageReader::open(source)
+            .map_err(|e| {
+                format!(
+                    "Failed to open image {}: {}",
+                    normalize_path(&source.to_string_lossy()),
+                    e
+                )
+            })?
+            .with_guessed_format()
+            .map_err(|e| {
+                format!(
+                    "Failed to guess format for {}: {}",
+                    normalize_path(&source.to_string_lossy()),
+                    e
+                )
+            })?
+            .decode()
+            .map_err(|e| {
+                format!(
+                    "Failed to decode image {}: {}",
+                    normalize_path(&source.to_string_lossy()),
+                    e
+                )
+            })
+    }
+
     /// Generates a thumbnail for a single file.
     /// Returns the thumbnail path on success.
     fn generate_single(source: &Path, cache_base_dir: &Path) -> Result<String, String> {
@@ -46,14 +74,8 @@ impl ThumbnailService {
         // Ensure cache directory exists
         cache::ensure_cache_dir(cache_base_dir)?;
 
-        // Open and resize the image
-        let img = image::open(source).map_err(|e| {
-            format!(
-                "Failed to open image {}: {}",
-                normalize_path(&source.to_string_lossy()),
-                e
-            )
-        })?;
+        // Open and resize the image, ignoring file extension and inferring from magic bytes
+        let img = Self::load_image(source)?;
 
         let thumbnail = img.thumbnail(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
 
@@ -214,61 +236,95 @@ mod tests {
         )));
     }
 
-    macro_rules! test_generate_single {
-        ($name:ident, $filename:expr) => {
-            #[test]
-            fn $name() {
-                // Paths
-                let manifest_dir = env!("CARGO_MANIFEST_DIR");
-                let source_path = PathBuf::from(manifest_dir)
-                    .join(format!("fixtures/file-examples.com/{}", $filename));
-                let cache_base_dir = std::env::temp_dir()
-                    .join(format!("media_viewer_test_cache_{}", stringify!($name)));
+    fn test_generate_single_fixture(fixture_path: &str, test_name: &str) {
+        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        d.push(format!("fixtures/{}", fixture_path));
 
-                // Clean up previous test cache if it exists
-                if cache_base_dir.exists() {
-                    let _ = std::fs::remove_dir_all(&cache_base_dir);
-                }
+        let cache_base_dir =
+            std::env::temp_dir().join(format!("media_viewer_test_cache_{}", test_name));
 
-                // Execute the function
-                let result = ThumbnailService::generate_single(&source_path, &cache_base_dir);
+        // Clean up previous test cache if it exists
+        if cache_base_dir.exists() {
+            let _ = std::fs::remove_dir_all(&cache_base_dir);
+        }
 
-                // Assertions
-                assert!(
-                    result.is_ok(),
-                    "generate_single failed for {}: {:?}",
-                    $filename,
-                    result.err()
-                );
+        // Execute the function
+        let result = ThumbnailService::generate_single(&d, &cache_base_dir);
 
-                let thumb_path_str = result.unwrap();
-                let thumb_path = PathBuf::from(thumb_path_str);
+        // Assertions
+        assert!(
+            result.is_ok(),
+            "generate_single failed for {}: {:?}",
+            d.display(),
+            result.err()
+        );
 
-                assert!(
-                    thumb_path.exists(),
-                    "Thumbnail file does not exist at expected path"
-                );
+        let thumb_path_str = result.unwrap();
+        let thumb_path = PathBuf::from(thumb_path_str);
 
-                // Ensure that the background image matches its dimensions.
-                let img = image::open(&thumb_path).expect("Failed to open generated thumbnail");
-                assert!(
-                    img.width() <= super::THUMBNAIL_SIZE,
-                    "Thumbnail width exceeds maximum"
-                );
-                assert!(
-                    img.height() <= super::THUMBNAIL_SIZE,
-                    "Thumbnail height exceeds maximum"
-                );
+        assert!(
+            thumb_path.exists(),
+            "Thumbnail file does not exist at expected path"
+        );
 
-                // Cleanup
-                let _ = std::fs::remove_dir_all(&cache_base_dir);
-            }
-        };
+        // Ensure that the background image matches its dimensions.
+        let img = image::open(&thumb_path).expect("Failed to open generated thumbnail");
+        assert!(
+            img.width() <= super::THUMBNAIL_SIZE,
+            "Thumbnail width exceeds maximum"
+        );
+        assert!(
+            img.height() <= super::THUMBNAIL_SIZE,
+            "Thumbnail height exceeds maximum"
+        );
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&cache_base_dir);
     }
 
-    test_generate_single!(test_generate_single_jpg, "file_example_JPG_100kB.jpg");
-    test_generate_single!(test_generate_single_png, "file_example_PNG_500kB.png");
-    test_generate_single!(test_generate_single_gif, "file_example_GIF_500kB.gif");
-    test_generate_single!(test_generate_single_webp, "file_example_WEBP_250kB.webp");
-    test_generate_single!(test_generate_single_ico, "file_example_favicon.ico");
+    #[test]
+    fn test_generate_single_jpg() {
+        test_generate_single_fixture("file-examples.com/file_example_JPG_100kB.jpg", "jpg");
+    }
+
+    #[test]
+    fn test_generate_single_png() {
+        test_generate_single_fixture("file-examples.com/file_example_PNG_500kB.png", "png");
+    }
+
+    #[test]
+    fn test_generate_single_gif() {
+        test_generate_single_fixture("file-examples.com/file_example_GIF_500kB.gif", "gif");
+    }
+
+    #[test]
+    fn test_generate_single_webp() {
+        test_generate_single_fixture("file-examples.com/file_example_WEBP_250kB.webp", "webp");
+    }
+
+    #[test]
+    fn test_generate_single_ico() {
+        test_generate_single_fixture("file-examples.com/file_example_favicon.ico", "ico");
+    }
+
+    #[test]
+    fn test_generate_single_magic_bytes() {
+        // Test that infer handles files correctly even if extension is wrong
+        // jpg-with-png-extension.png is actually a JPEG file
+        test_generate_single_fixture(
+            "problematic-files/jpg-with-png-extension.png",
+            "magic_bytes",
+        );
+    }
+
+    #[test]
+    fn test_is_supported_real_files_magic_bytes() {
+        // Test that infer handles files correctly even if extension is wrong
+        // jpg_with_png_extension.png is actually a JPEG file
+        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        d.push("fixtures/problematic-files/jpg-with-png-extension.png");
+
+        // This should be true because image crate detects it as a JPEG (image/jpeg)
+        assert!(ThumbnailService::is_supported(&d));
+    }
 }
