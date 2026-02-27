@@ -261,6 +261,37 @@ mod tests {
     }
 
     #[test]
+    fn test_ensure_cache_dir_already_exists() {
+        let env = setup_test_env();
+
+        // Manually create the directory first
+        std::fs::create_dir_all(env.temp_dir.path()).unwrap();
+
+        // Should return ok without errors
+        let cache_dir =
+            ensure_cache_dir(env.temp_dir.path()).expect("Failed to ensure existing cache dir");
+
+        assert!(cache_dir.exists());
+        assert!(cache_dir.is_dir());
+    }
+
+    #[test]
+    fn test_ensure_cache_dir_fails_if_file_exists() {
+        let env = setup_test_env();
+        let file_path = env.temp_dir.path().join("fake_dir");
+
+        // Create a file at the location where the directory should be
+        std::fs::write(&file_path, "not a directory").unwrap();
+
+        // This should fail because a file exists at that path
+        let result = ensure_cache_dir(&file_path);
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err();
+        assert!(err_msg.contains("Cache path exists but is not a directory"));
+    }
+
+    #[test]
     fn test_manifest_starts_empty() {
         let env = setup_test_env();
 
