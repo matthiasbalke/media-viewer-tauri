@@ -263,7 +263,7 @@
                         <img
                             src={file.thumbnailSrc}
                             alt={file.name}
-                            class="w-full h-full object-cover"
+                            class="w-full h-full object-scale-down"
                         />
                     {/if}
 
