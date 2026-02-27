@@ -35,16 +35,33 @@ pub fn thumbnail_path(source: &Path, cache_base_dir: &Path) -> Result<PathBuf, S
     Ok(cache_base_dir.join(format!("{}.jpg", hash)))
 }
 
+fn get_canonicalized_path(user_provided_path: &Path) -> Result<PathBuf, String> {
+    let canonical = user_provided_path
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve path: {}", e))?;
+
+    // Verify the canonical path is within an allowed base directory if needed
+    Ok(canonical)
+}
+
 /// Returns true if the thumbnail is stale (source was modified after the thumbnail).
 pub fn is_stale(source: &Path, thumbnail: &Path) -> bool {
-    let source_mtime = match fs::metadata(source).and_then(|m| m.modified()) {
-        Ok(t) => t,
-        Err(_) => return true, // Can't read source → treat as stale
+    let source_mtime = match get_canonicalized_path(source)
+        .ok()
+        .and_then(|p| fs::metadata(p).ok())
+        .and_then(|m| m.modified().ok())
+    {
+        Some(t) => t,
+        None => return true, // Can't read source → treat as stale
     };
 
-    let thumb_mtime = match fs::metadata(thumbnail).and_then(|m| m.modified()) {
-        Ok(t) => t,
-        Err(_) => return true, // Thumbnail doesn't exist → stale
+    let thumb_mtime = match get_canonicalized_path(thumbnail)
+        .ok()
+        .and_then(|p| fs::metadata(p).ok())
+        .and_then(|m| m.modified().ok())
+    {
+        Some(t) => t,
+        None => return true, // Thumbnail doesn't exist → stale
     };
 
     source_mtime > thumb_mtime
@@ -52,8 +69,8 @@ pub fn is_stale(source: &Path, thumbnail: &Path) -> bool {
 
 /// Creates the base cache directory if it doesn't exist.
 pub fn ensure_cache_dir(cache_base_dir: &Path) -> Result<PathBuf, String> {
-    if cache_base_dir.exists() {
-        if !cache_base_dir.is_dir() {
+    if check_path.exists() {
+        if !check_path.is_dir() {
             return Err(format!(
                 "Cache path exists but is not a directory: {}",
                 cache_base_dir.display()
