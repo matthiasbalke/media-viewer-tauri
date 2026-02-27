@@ -340,6 +340,48 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_single_small_image() {
+        // Specifically test that we don't upscale a small file (e.g. 16x16 or 32x32 ico)
+        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        d.push("fixtures/file-examples.com/file_example_favicon.ico");
+
+        let cache_base_dir = std::env::temp_dir().join("media_viewer_test_cache_small_image");
+
+        // Clean up previous test cache if it exists
+        if cache_base_dir.exists() {
+            let _ = std::fs::remove_dir_all(&cache_base_dir);
+        }
+
+        // Execute the function
+        let result = ThumbnailService::generate_single(&d, &cache_base_dir);
+        assert!(
+            result.is_ok(),
+            "generate_single failed for {}: {:?}",
+            d.display(),
+            result.err()
+        );
+
+        let thumb_path_str = result.unwrap();
+        let thumb_path = PathBuf::from(thumb_path_str);
+
+        let original_img = ThumbnailService::load_image(&d).expect("Failed to open original image");
+        let img = image::open(&thumb_path).expect("Failed to open generated thumbnail");
+
+        assert_eq!(
+            img.width(),
+            original_img.width(),
+            "Thumbnail width should equal original width for small images"
+        );
+        assert_eq!(
+            img.height(),
+            original_img.height(),
+            "Thumbnail height should equal original height for small images"
+        );
+
+        let _ = std::fs::remove_dir_all(&cache_base_dir);
+    }
+
+    #[test]
     fn test_generate_single_magic_bytes() {
         // Test that infer handles files correctly even if extension is wrong
         // jpg-with-png-extension.png is actually a JPEG file
