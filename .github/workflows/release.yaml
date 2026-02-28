@@ -1,0 +1,73 @@
+name: GitHub Release
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - name: Extract version
+        id: extract_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      # Download macOS artifacts from the latest successful main build
+      - name: Download macOS artifacts
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{secrets.GITHUB_TOKEN}}
+          workflow: build-tauri-app.yaml
+          branch: main
+          name: tauri-bundles-macos-15-intel
+          path: artifacts/macos
+          # If the branch hasn't built yet, we don't want the release job to silently succeed without files.
+          search_artifacts: true 
+          if_no_artifact_found: warn
+
+      # Download Windows artifacts from the latest successful main build
+      - name: Download Windows artifacts
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{secrets.GITHUB_TOKEN}}
+          workflow: build-tauri-app.yaml
+          branch: main
+          name: tauri-bundles-windows-latest
+          path: artifacts/windows
+          search_artifacts: true
+          if_no_artifact_found: warn
+
+      # Download Linux artifacts from the latest successful main build
+      - name: Download Linux artifacts
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{secrets.GITHUB_TOKEN}}
+          workflow: build-tauri-app.yaml
+          branch: main
+          name: tauri-bundles-ubuntu-22.04
+          path: artifacts/linux
+          search_artifacts: true
+          if_no_artifact_found: warn
+
+      # Create Release and upload all downloaded artifacts
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
+          draft: true
+          prerelease: false
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/macos/**/*.dmg
+            artifacts/macos/**/*.app
+            artifacts/windows/**/*.msi
+            artifacts/windows/**/*.exe
+            artifacts/linux/**/*.deb
+            artifacts/linux/**/*.rpm
+            artifacts/linux/**/*.AppImage
