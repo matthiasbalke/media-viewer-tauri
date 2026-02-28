@@ -82,13 +82,24 @@ jobs:
       - run: bun tauri build
         name: create bundles
 
+      - name: Zip macOS App Bundle
+        if: startsWith(matrix.os, 'macOS')
+        run: |
+          pushd src-tauri/target/release/bundle/macos > /dev/null
+          for app in *.app; do
+            if [ -d "$app" ]; then
+              zip -r "${app}.zip" "$app"
+            fi
+          done
+          popd > /dev/null
+
       - name: Upload macOS bundle artifacts
         uses: actions/upload-artifact@v6
         if: startsWith(matrix.os, 'macOS')
         with:
           name: tauri-bundles-${{ matrix.os }}
           path: |
-            src-tauri/target/release/bundle/macos/*.app
+            src-tauri/target/release/bundle/macos/*.app.zip
             src-tauri/target/release/bundle/dmg/*.dmg
 
       - name: Upload Windows bundle artifacts
