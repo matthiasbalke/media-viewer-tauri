@@ -65,7 +65,7 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             artifacts/macos/**/*.dmg
-            artifacts/macos/**/*.app
+            artifacts/macos/macos/media-viewer.app
             artifacts/windows/**/*.msi
             artifacts/windows/**/*.exe
             artifacts/linux/**/*.deb
