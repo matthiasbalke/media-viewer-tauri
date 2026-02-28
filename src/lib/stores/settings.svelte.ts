@@ -1,4 +1,5 @@
 import { load } from "@tauri-apps/plugin-store";
+import { appLocalDataDir, join } from '@tauri-apps/api/path';
 
 const DEFAULT_THUMBNAIL_SIZE = 128;
 const STORE_NAME = "settings.json";
@@ -9,12 +10,13 @@ const storeOptions = {
         rootPaths: [] as string[],
     },
     autoSave: true as const,
-    overrideDefaults: true,
+    overrideDefaults: false,
 };
 
 class SettingsStore {
     thumbnailSize = $state(DEFAULT_THUMBNAIL_SIZE);
     rootPaths = $state<string[]>([]);
+    cacheBaseDir = $state<string | null>(null);
     ready = $state(false);
 
     private store: any = null;
@@ -37,6 +39,21 @@ class SettingsStore {
             if (savedPaths && savedPaths.length > 0) {
                 this.rootPaths = savedPaths;
             }
+
+            let savedCacheDir = await this.store.get("cacheBaseDir") as string | null | undefined;
+            if (savedCacheDir) {
+                this.cacheBaseDir = savedCacheDir;
+            } else {
+                // Determine a safe cross-platform default for the cache directory:
+                // Usually this maps to:
+                // Linux:   ~/.local/share/<bundle-identifier>/thumbnails
+                // macOS:   ~/Library/Application Support/<bundle-identifier>/thumbnails
+                // Windows: C:\Users\<user>\AppData\Local\<bundle-identifier>\thumbnails
+                const baseDir = await appLocalDataDir();
+                this.cacheBaseDir = await join(baseDir, "thumbnails");
+                await this.store.set("cacheBaseDir", this.cacheBaseDir);
+            }
+
         } catch (error) {
             console.error("Failed to load settings:", error);
         } finally {
@@ -60,6 +77,11 @@ class SettingsStore {
     async removeRootPath(path: string) {
         this.rootPaths = this.rootPaths.filter(p => p !== path);
         await this.saveNow("rootPaths", this.rootPaths);
+    }
+
+    async setCacheBaseDir(path: string) {
+        this.cacheBaseDir = path;
+        await this.saveNow("cacheBaseDir", path);
     }
 
     private debouncedSave(key: string, value: any) {

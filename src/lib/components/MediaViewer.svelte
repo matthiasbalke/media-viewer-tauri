@@ -71,11 +71,13 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="viewer-container">
-    <div class="viewer-main">
+<div class="flex flex-col h-full bg-zinc-950">
+    <div
+        class="flex-1 flex items-center justify-center relative overflow-hidden min-h-0"
+    >
         <!-- Close button -->
         <button
-            class="close-btn"
+            class="absolute top-3 left-3 z-10 w-9 h-9 flex items-center justify-center bg-zinc-900/70 backdrop-blur-md border border-zinc-700/50 rounded-lg text-zinc-400 cursor-pointer p-0 transition-colors duration-150 hover:text-white hover:bg-zinc-800/90"
             onclick={() => onClose?.()}
             title="Back to grid (Esc)"
         >
@@ -84,24 +86,33 @@
                 fill="none"
                 stroke="currentColor"
                 stroke-width="2"
+                class="w-[18px] h-[18px]"
             >
                 <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
         </button>
 
         {#if imageSrc}
-            <img src={imageSrc} alt={file.name} class="viewer-image" />
+            <img
+                src={imageSrc}
+                alt={file.name}
+                class="max-w-full max-h-full object-contain rounded"
+            />
         {:else}
-            <div class="unsupported-preview">
-                <span class="unsupported-icon">🖼️</span>
-                <p class="unsupported-text">
+            <div class="flex flex-col items-center gap-3 text-zinc-500">
+                <span class="text-5xl">🖼️</span>
+                <p class="text-sm m-0">
                     Preview not available for .{getExtension(file.name)} files
                 </p>
             </div>
         {/if}
 
         <!-- File name -->
-        <div class="file-name">{file.name}</div>
+        <div
+            class="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-zinc-900/70 backdrop-blur-md rounded-md text-xs text-zinc-400 whitespace-nowrap max-w-[80%] overflow-hidden text-ellipsis"
+        >
+            {file.name}
+        </div>
     </div>
 
     <Filmstrip
@@ -110,97 +121,3 @@
         onSelect={handleFilmstripSelect}
     />
 </div>
-
-<style>
-    .viewer-container {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        background: #09090b;
-    }
-
-    .viewer-main {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        position: relative;
-        overflow: hidden;
-        min-height: 0;
-    }
-
-    .close-btn {
-        position: absolute;
-        top: 12px;
-        left: 12px;
-        z-index: 10;
-        width: 36px;
-        height: 36px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(24, 24, 27, 0.7);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        border: 1px solid rgba(63, 63, 70, 0.5);
-        border-radius: 8px;
-        color: #a1a1aa;
-        cursor: pointer;
-        padding: 0;
-        transition:
-            color 0.15s ease,
-            background 0.15s ease;
-    }
-
-    .close-btn:hover {
-        color: #ffffff;
-        background: rgba(39, 39, 42, 0.9);
-    }
-
-    .close-btn svg {
-        width: 18px;
-        height: 18px;
-    }
-
-    .viewer-image {
-        max-width: 100%;
-        max-height: 100%;
-        object-fit: contain;
-        border-radius: 4px;
-    }
-
-    .unsupported-preview {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 12px;
-        color: #71717a;
-    }
-
-    .unsupported-icon {
-        font-size: 48px;
-    }
-
-    .unsupported-text {
-        font-size: 14px;
-        margin: 0;
-    }
-
-    .file-name {
-        position: absolute;
-        bottom: 12px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 4px 12px;
-        background: rgba(24, 24, 27, 0.7);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        border-radius: 6px;
-        font-size: 12px;
-        color: #a1a1aa;
-        white-space: nowrap;
-        max-width: 80%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-</style>
