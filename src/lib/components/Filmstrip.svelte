@@ -33,131 +33,50 @@
     });
 </script>
 
-<div class="filmstrip" bind:this={stripContainer}>
+<div
+    class="flex flex-row gap-1 px-2 py-1.5 overflow-x-auto overflow-y-hidden bg-zinc-900/90 border-t border-zinc-700/50 shrink-0 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-zinc-700 [&::-webkit-scrollbar-thumb]:rounded-sm"
+    bind:this={stripContainer}
+>
     {#each files as file}
         <button
-            class="filmstrip-thumb"
-            class:active={file.path === selectedPath}
+            class="shrink-0 w-20 h-[60px] border-2 rounded-md overflow-hidden cursor-pointer p-0 transition-colors duration-150 {file.thumbnailState ===
+            'ready'
+                ? 'bg-transparent'
+                : 'bg-zinc-800'} {file.path === selectedPath
+                ? 'border-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.3)]'
+                : 'border-transparent hover:border-blue-500/50'}"
             data-active={file.path === selectedPath}
             onclick={() => onSelect?.(file)}
             title={file.name}
         >
             {#if file.thumbnailState === "loading"}
-                <div class="thumb-placeholder">
-                    <div class="spinner"></div>
+                <div
+                    class="w-full h-full flex items-center justify-center bg-zinc-900"
+                >
+                    <div
+                        class="w-4 h-4 rounded-full border-2 border-zinc-700 border-t-zinc-400 animate-spin"
+                    ></div>
                 </div>
             {:else if file.thumbnailState === "error"}
-                <div class="thumb-placeholder">
-                    <span class="thumb-icon error">✕</span>
+                <div
+                    class="w-full h-full flex items-center justify-center bg-zinc-900"
+                >
+                    <span class="text-lg text-red-400">✕</span>
                 </div>
             {:else if file.thumbnailState === "unsupported"}
-                <div class="thumb-placeholder">
-                    <span class="thumb-icon unsupported">?</span>
+                <div
+                    class="w-full h-full flex items-center justify-center bg-zinc-900"
+                >
+                    <span class="text-lg text-zinc-500">?</span>
                 </div>
             {:else if file.thumbnailSrc}
                 <img
                     src={file.thumbnailSrc}
                     alt={file.name}
-                    class="thumb-img"
+                    class="w-full h-full object-scale-down block"
                     draggable="false"
                 />
             {/if}
         </button>
     {/each}
 </div>
-
-<style>
-    .filmstrip {
-        display: flex;
-        flex-direction: row;
-        gap: 4px;
-        padding: 6px 8px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        background: rgba(24, 24, 27, 0.9);
-        border-top: 1px solid rgba(63, 63, 70, 0.5);
-        flex-shrink: 0;
-        scrollbar-width: thin;
-        scrollbar-color: #3f3f46 transparent;
-    }
-
-    .filmstrip::-webkit-scrollbar {
-        height: 4px;
-    }
-
-    .filmstrip::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    .filmstrip::-webkit-scrollbar-thumb {
-        background: #3f3f46;
-        border-radius: 2px;
-    }
-
-    .filmstrip-thumb {
-        flex-shrink: 0;
-        width: 80px;
-        height: 60px;
-        border: 2px solid transparent;
-        border-radius: 6px;
-        overflow: hidden;
-        cursor: pointer;
-        background: #27272a;
-        padding: 0;
-        transition:
-            border-color 0.15s ease,
-            opacity 0.15s ease;
-    }
-
-    .filmstrip-thumb:hover {
-        border-color: rgba(59, 130, 246, 0.5);
-    }
-
-    .filmstrip-thumb.active {
-        border-color: #3b82f6;
-        box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
-    }
-
-    .thumb-img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-    }
-
-    .thumb-placeholder {
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #18181b;
-    }
-
-    .thumb-icon {
-        font-size: 18px;
-    }
-
-    .thumb-icon.error {
-        color: #f87171;
-    }
-
-    .thumb-icon.unsupported {
-        color: #71717a;
-    }
-
-    .spinner {
-        width: 16px;
-        height: 16px;
-        border: 2px solid #3f3f46;
-        border-top-color: #a1a1aa;
-        border-radius: 50%;
-        animation: spin 0.6s linear infinite;
-    }
-
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-</style>

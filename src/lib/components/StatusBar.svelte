@@ -21,17 +21,23 @@
     }
 </script>
 
-<div class="statusbar">
-    <div class="statusbar-left">
+<div
+    class="flex items-center justify-between h-7 px-3 bg-zinc-900/80 backdrop-blur-xl border-t border-zinc-700/50 text-xs text-zinc-400 shrink-0 select-none"
+>
+    <div class="flex items-center">
         {#if itemCount > 0}
-            <span class="item-count"
+            <span class="tabular-nums"
                 >{itemCount} {itemCount === 1 ? "item" : "items"}</span
             >
         {/if}
     </div>
 
-    <div class="statusbar-right">
-        <svg class="size-icon" viewBox="0 0 16 16" fill="currentColor">
+    <div class="flex items-center gap-1.5">
+        <svg
+            class="w-3 h-3 text-zinc-500 shrink-0"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+        >
             <rect x="3" y="3" width="4" height="4" rx="0.5" />
             <rect x="9" y="3" width="4" height="4" rx="0.5" />
             <rect x="3" y="9" width="4" height="4" rx="0.5" />
@@ -45,12 +51,12 @@
             step="1"
             value={sliderIndex}
             oninput={handleInput}
-            class="size-slider"
+            class="appearance-none w-20 h-1 bg-zinc-700 rounded-sm outline-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-[14px] [&::-webkit-slider-thumb]:h-[14px] [&::-webkit-slider-thumb]:bg-zinc-300 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-[0_0.5px_2px_rgba(0,0,0,0.4)] [&::-webkit-slider-thumb]:transition-colors [&::-webkit-slider-thumb]:duration-150 hover:[&::-webkit-slider-thumb]:bg-white"
             title="Thumbnail size: {thumbnailSize}px"
         />
 
         <svg
-            class="size-icon size-icon-large"
+            class="w-4 h-4 text-zinc-500 shrink-0"
             viewBox="0 0 16 16"
             fill="currentColor"
         >
@@ -61,91 +67,3 @@
         </svg>
     </div>
 </div>
-
-<style>
-    .statusbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        height: 28px;
-        padding: 0 12px;
-        background: rgba(24, 24, 27, 0.8);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border-top: 1px solid rgba(63, 63, 70, 0.5);
-        font-size: 12px;
-        color: #a1a1aa;
-        flex-shrink: 0;
-        user-select: none;
-    }
-
-    .statusbar-left {
-        display: flex;
-        align-items: center;
-    }
-
-    .item-count {
-        font-variant-numeric: tabular-nums;
-    }
-
-    .statusbar-right {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .size-icon {
-        width: 12px;
-        height: 12px;
-        color: #71717a;
-        flex-shrink: 0;
-    }
-
-    .size-icon-large {
-        width: 16px;
-        height: 16px;
-    }
-
-    /* Range slider — macOS-inspired minimal style */
-    .size-slider {
-        -webkit-appearance: none;
-        appearance: none;
-        width: 80px;
-        height: 4px;
-        background: #3f3f46;
-        border-radius: 2px;
-        outline: none;
-        cursor: pointer;
-    }
-
-    .size-slider::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        appearance: none;
-        width: 14px;
-        height: 14px;
-        background: #d4d4d8;
-        border-radius: 50%;
-        cursor: pointer;
-        box-shadow: 0 0.5px 2px rgba(0, 0, 0, 0.4);
-        transition: background 0.15s ease;
-    }
-
-    .size-slider::-webkit-slider-thumb:hover {
-        background: #ffffff;
-    }
-
-    .size-slider::-moz-range-thumb {
-        width: 14px;
-        height: 14px;
-        background: #d4d4d8;
-        border: none;
-        border-radius: 50%;
-        cursor: pointer;
-        box-shadow: 0 0.5px 2px rgba(0, 0, 0, 0.4);
-        transition: background 0.15s ease;
-    }
-
-    .size-slider::-moz-range-thumb:hover {
-        background: #ffffff;
-    }
-</style>

@@ -1,17 +1,47 @@
 <script lang="ts">
     import { fade, scale } from "svelte/transition";
     import { invoke } from "@tauri-apps/api/core";
+    import { open as openDialog } from "@tauri-apps/plugin-dialog";
+    import { openPath } from "@tauri-apps/plugin-opener";
+    import { settingsStore } from "$lib/stores/settings.svelte";
 
     let { onClose } = $props<{ onClose: () => void }>();
 
     let isCleaning = $state(false);
     let cleanMessage = $state("");
 
+    async function handleChangeCacheDir() {
+        const selected = await openDialog({
+            directory: true,
+            multiple: false,
+            title: "Select Thumbnail Cache Directory",
+        });
+
+        if (selected && typeof selected === "string") {
+            const normalized = selected.replace(/\\/g, "/");
+            await settingsStore.setCacheBaseDir(normalized);
+        }
+    }
+
+    async function handleOpenCacheDir() {
+        if (settingsStore.cacheBaseDir) {
+            try {
+                await openPath(settingsStore.cacheBaseDir);
+            } catch (e) {
+                console.error("Failed to open cache dir", e);
+            }
+        }
+    }
+
     async function handleCleanup() {
         isCleaning = true;
         cleanMessage = "Cleaning up...";
         try {
-            await invoke("cleanup_orphan_thumbnails");
+            if (settingsStore.cacheBaseDir) {
+                await invoke("cleanup_orphan_thumbnails", {
+                    cacheBaseDir: settingsStore.cacheBaseDir,
+                });
+            }
             cleanMessage = "Cleanup successful!";
         } catch (e) {
             console.error(e);
@@ -37,7 +67,11 @@
         isDeletingAll = true;
         deleteAllMessage = "Deleting all thumbnails...";
         try {
-            await invoke("delete_all_thumbnails");
+            if (settingsStore.cacheBaseDir) {
+                await invoke("delete_all_thumbnails", {
+                    cacheBaseDir: settingsStore.cacheBaseDir,
+                });
+            }
             deleteAllMessage = "All thumbnails deleted!";
             confirmDeleteAll = false;
         } catch (e) {
@@ -121,6 +155,36 @@
                     </h3>
 
                     <div class="space-y-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-zinc-200">
+                                    Cache Location
+                                </p>
+                                <p
+                                    class="text-xs text-zinc-400 mt-1 break-all font-mono bg-zinc-950 p-2 rounded border border-zinc-800"
+                                >
+                                    {settingsStore.cacheBaseDir ||
+                                        "Loading default..."}
+                                </p>
+                            </div>
+                            <div class="flex flex-col gap-2 shrink-0">
+                                <button
+                                    class="whitespace-nowrap px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-sm font-medium text-white rounded-lg transition-colors border border-zinc-700"
+                                    onclick={handleChangeCacheDir}
+                                >
+                                    Change...
+                                </button>
+                                <button
+                                    class="whitespace-nowrap px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-sm font-medium text-white rounded-lg transition-colors border border-zinc-700"
+                                    onclick={handleOpenCacheDir}
+                                >
+                                    Open
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="h-px bg-zinc-800/50 my-2"></div>
+
                         <div class="flex items-start justify-between gap-4">
                             <div>
                                 <p class="text-sm font-medium text-zinc-200">

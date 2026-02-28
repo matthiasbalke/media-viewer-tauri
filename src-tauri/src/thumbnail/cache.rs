@@ -15,31 +15,9 @@ thread_local! {
     static TEST_CACHE_DIR: RefCell<Option<PathBuf>> = RefCell::new(None);
 }
 
-/// Overrides the base cache directory for testing purposes.
-#[cfg(test)]
-pub(crate) fn set_test_cache_dir(path: Option<PathBuf>) {
-    TEST_CACHE_DIR.with(|dir| {
-        *dir.borrow_mut() = path;
-    });
-}
-
-/// Returns the base cache directory: ~/.mv/thumbnails
-/// If TEST_CACHE_DIR is set, uses that instead (for isolation in tests).
-fn cache_base_dir() -> Result<PathBuf, String> {
-    #[cfg(test)]
-    {
-        if let Some(test_dir) = TEST_CACHE_DIR.with(|dir| dir.borrow().clone()) {
-            return Ok(test_dir);
-        }
-    }
-
-    let home = dirs::home_dir().ok_or("Could not determine home directory")?;
-    Ok(home.join(".mv").join("thumbnails"))
-}
-
 /// Returns the path to the manifest file.
-fn manifest_path() -> Result<PathBuf, String> {
-    Ok(cache_base_dir()?.join("manifest.json"))
+fn manifest_path(cache_base_dir: &Path) -> PathBuf {
+    cache_base_dir.join("manifest.json")
 }
 
 /// Computes the hash string for a source path.
@@ -51,68 +29,82 @@ fn hash_for_path(source: &Path) -> String {
 }
 
 /// Returns the path to the thumbnail for a given source file.
-/// Format: ~/.mv/thumbnails/<size>/<hash>.jpg
-pub fn thumbnail_path(source: &Path, size: u32) -> Result<PathBuf, String> {
-    let base = cache_base_dir()?;
+/// Format: <cache_base_dir>/<hash>.jpg
+pub fn thumbnail_path(source: &Path, cache_base_dir: &Path) -> Result<PathBuf, String> {
     let hash = hash_for_path(source);
-    Ok(base.join(size.to_string()).join(format!("{}.jpg", hash)))
+    Ok(cache_base_dir.join(format!("{}.jpg", hash)))
+}
+
+fn get_canonicalized_path(user_provided_path: &Path) -> Result<PathBuf, String> {
+    let canonical = user_provided_path
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve path: {}", e))?;
+
+    // Verify the canonical path is within an allowed base directory if needed
+    Ok(canonical)
 }
 
 /// Returns true if the thumbnail is stale (source was modified after the thumbnail).
 pub fn is_stale(source: &Path, thumbnail: &Path) -> bool {
-    let source_mtime = match fs::metadata(source).and_then(|m| m.modified()) {
-        Ok(t) => t,
-        Err(_) => return true, // Can't read source → treat as stale
+    let source_mtime = match get_canonicalized_path(source)
+        .ok()
+        .and_then(|p| fs::metadata(p).ok())
+        .and_then(|m| m.modified().ok())
+    {
+        Some(t) => t,
+        None => return true, // Can't read source → treat as stale
     };
 
-    let thumb_mtime = match fs::metadata(thumbnail).and_then(|m| m.modified()) {
-        Ok(t) => t,
-        Err(_) => return true, // Thumbnail doesn't exist → stale
+    let thumb_mtime = match get_canonicalized_path(thumbnail)
+        .ok()
+        .and_then(|p| fs::metadata(p).ok())
+        .and_then(|m| m.modified().ok())
+    {
+        Some(t) => t,
+        None => return true, // Thumbnail doesn't exist → stale
     };
 
     source_mtime > thumb_mtime
 }
 
-/// Creates the cache directory for the given thumbnail size.
-pub fn ensure_cache_dir(size: u32) -> Result<PathBuf, String> {
-    let cache_dir = cache_base_dir()?.join(size.to_string());
-
-    if cache_dir.exists() {
-        if !cache_dir.is_dir() {
+/// Creates the base cache directory if it doesn't exist.
+pub fn ensure_cache_dir(cache_base_dir: &Path) -> Result<PathBuf, String> {
+    if cache_base_dir.exists() {
+        if !cache_base_dir.is_dir() {
             return Err(format!(
                 "Cache path exists but is not a directory: {}",
-                cache_dir.display()
+                cache_base_dir.display()
             ));
         }
     } else {
-        fs::create_dir_all(&cache_dir).map_err(|e| {
+        fs::create_dir_all(cache_base_dir).map_err(|e| {
             format!(
                 "Failed to create cache directory {}: {}",
-                cache_dir.display(),
+                cache_base_dir.display(),
                 e
             )
         })?;
     }
 
     // Verify we can write to the directory
-    let test_file = cache_dir.join(".write_test");
+    let test_file = cache_base_dir.join(".write_test");
     fs::write(&test_file, b"").map_err(|e| {
         format!(
             "Cache directory is not writable {}: {}",
-            cache_dir.display(),
+            cache_base_dir.display(),
             e
         )
     })?;
     let _ = fs::remove_file(&test_file);
 
-    Ok(cache_dir)
+    Ok(cache_base_dir.to_path_buf())
 }
 
 // --- Manifest management ---
 
 /// Loads the manifest (hash → source_path).
-fn load_manifest() -> Result<HashMap<String, String>, String> {
-    let path = manifest_path()?;
+fn load_manifest(cache_base_dir: &Path) -> Result<HashMap<String, String>, String> {
+    let path = manifest_path(cache_base_dir);
     if !path.exists() {
         return Ok(HashMap::new());
     }
@@ -121,8 +113,8 @@ fn load_manifest() -> Result<HashMap<String, String>, String> {
 }
 
 /// Saves the manifest to disk.
-fn save_manifest(manifest: &HashMap<String, String>) -> Result<(), String> {
-    let path = manifest_path()?;
+fn save_manifest(manifest: &HashMap<String, String>, cache_base_dir: &Path) -> Result<(), String> {
+    let path = manifest_path(cache_base_dir);
     // Ensure parent directory exists
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
@@ -134,24 +126,24 @@ fn save_manifest(manifest: &HashMap<String, String>) -> Result<(), String> {
 }
 
 /// Registers a thumbnail in the manifest after generation.
-pub fn register_thumbnail(source: &Path) -> Result<(), String> {
+pub fn register_thumbnail(source: &Path, cache_base_dir: &Path) -> Result<(), String> {
     let _lock = MANIFEST_LOCK
         .lock()
         .map_err(|e| format!("Manifest lock error: {}", e))?;
     let hash = hash_for_path(source);
-    let mut manifest = load_manifest()?;
+    let mut manifest = load_manifest(cache_base_dir)?;
     manifest.insert(hash, super::normalize_path(&source.to_string_lossy()));
-    save_manifest(&manifest)
+    save_manifest(&manifest, cache_base_dir)
 }
 
 /// Deletes all thumbnails whose source path starts with the given prefix.
 /// Used when a root directory is removed.
-pub fn cleanup_for_prefix(prefix: &str) -> Result<u32, String> {
+pub fn cleanup_for_prefix(prefix: &str, cache_base_dir: &str) -> Result<u32, String> {
     let _lock = MANIFEST_LOCK
         .lock()
         .map_err(|e| format!("Manifest lock error: {}", e))?;
-    let mut manifest = load_manifest()?;
-    let base = cache_base_dir()?;
+    let base = Path::new(cache_base_dir);
+    let mut manifest = load_manifest(base)?;
 
     let to_remove: Vec<String> = manifest
         .iter()
@@ -161,32 +153,25 @@ pub fn cleanup_for_prefix(prefix: &str) -> Result<u32, String> {
 
     let mut removed = 0u32;
     for hash in &to_remove {
-        // Try to delete all size variants
-        if let Ok(entries) = fs::read_dir(&base) {
-            for entry in entries.flatten() {
-                if entry.path().is_dir() {
-                    let thumb = entry.path().join(format!("{}.jpg", hash));
-                    if thumb.exists() {
-                        let _ = fs::remove_file(&thumb);
-                    }
-                }
-            }
+        let thumb = base.join(format!("{}.jpg", hash));
+        if thumb.exists() {
+            let _ = fs::remove_file(&thumb);
         }
         manifest.remove(hash);
         removed += 1;
     }
 
-    save_manifest(&manifest)?;
+    save_manifest(&manifest, base)?;
     Ok(removed)
 }
 
 /// Scans the manifest and deletes entries whose source file no longer exists.
-pub fn cleanup_orphans() -> Result<u32, String> {
+pub fn cleanup_orphans(cache_base_dir: &str) -> Result<u32, String> {
     let _lock = MANIFEST_LOCK
         .lock()
         .map_err(|e| format!("Manifest lock error: {}", e))?;
-    let mut manifest = load_manifest()?;
-    let base = cache_base_dir()?;
+    let base = Path::new(cache_base_dir);
+    let mut manifest = load_manifest(base)?;
 
     let orphans: Vec<String> = manifest
         .iter()
@@ -196,33 +181,26 @@ pub fn cleanup_orphans() -> Result<u32, String> {
 
     let mut removed = 0u32;
     for hash in &orphans {
-        // Delete all size variants
-        if let Ok(entries) = fs::read_dir(&base) {
-            for entry in entries.flatten() {
-                if entry.path().is_dir() {
-                    let thumb = entry.path().join(format!("{}.jpg", hash));
-                    if thumb.exists() {
-                        let _ = fs::remove_file(&thumb);
-                    }
-                }
-            }
+        let thumb = base.join(format!("{}.jpg", hash));
+        if thumb.exists() {
+            let _ = fs::remove_file(&thumb);
         }
         manifest.remove(hash);
         removed += 1;
     }
 
-    save_manifest(&manifest)?;
+    save_manifest(&manifest, base)?;
     Ok(removed)
 }
 
 /// Deletes the entire thumbnail cache directory.
-pub fn delete_all() -> Result<(), String> {
+pub fn delete_all(cache_base_dir: &str) -> Result<(), String> {
     let _lock = MANIFEST_LOCK
         .lock()
         .map_err(|e| format!("Manifest lock error: {}", e))?;
-    let base = cache_base_dir()?;
+    let base = Path::new(cache_base_dir);
     if base.exists() {
-        fs::remove_dir_all(&base).map_err(|e| format!("Failed to delete cache dir: {}", e))?;
+        fs::remove_dir_all(base).map_err(|e| format!("Failed to delete cache dir: {}", e))?;
     }
     Ok(())
 }
@@ -236,20 +214,12 @@ mod tests {
     use tempfile::tempdir;
 
     /// Helper function to create an isolated test environment
-    /// Automatically cleans up the global override when dropped.
     struct TestEnvGuard {
         pub temp_dir: tempfile::TempDir,
     }
 
-    impl Drop for TestEnvGuard {
-        fn drop(&mut self) {
-            set_test_cache_dir(None);
-        }
-    }
-
     fn setup_test_env() -> TestEnvGuard {
         let temp_dir = tempdir().expect("Failed to create temp test directory");
-        set_test_cache_dir(Some(temp_dir.path().to_path_buf()));
         TestEnvGuard { temp_dir }
     }
 
@@ -282,35 +252,64 @@ mod tests {
 
     #[test]
     fn test_ensure_cache_dir_creates_directory() {
-        let _env = setup_test_env();
+        let env = setup_test_env();
 
-        let size = 128; // Use 128 instead of 256 to avoid clashes with older tests if dirty
-        let cache_dir = ensure_cache_dir(size).expect("Failed to create cache dir");
+        let cache_dir = ensure_cache_dir(env.temp_dir.path()).expect("Failed to create cache dir");
 
         assert!(cache_dir.exists());
         assert!(cache_dir.is_dir());
-        assert!(cache_dir.ends_with("128"));
+    }
+
+    #[test]
+    fn test_ensure_cache_dir_already_exists() {
+        let env = setup_test_env();
+
+        // Manually create the directory first
+        std::fs::create_dir_all(env.temp_dir.path()).unwrap();
+
+        // Should return ok without errors
+        let cache_dir =
+            ensure_cache_dir(env.temp_dir.path()).expect("Failed to ensure existing cache dir");
+
+        assert!(cache_dir.exists());
+        assert!(cache_dir.is_dir());
+    }
+
+    #[test]
+    fn test_ensure_cache_dir_fails_if_file_exists() {
+        let env = setup_test_env();
+        let file_path = env.temp_dir.path().join("fake_dir");
+
+        // Create a file at the location where the directory should be
+        std::fs::write(&file_path, "not a directory").unwrap();
+
+        // This should fail because a file exists at that path
+        let result = ensure_cache_dir(&file_path);
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err();
+        assert!(err_msg.contains("Cache path exists but is not a directory"));
     }
 
     #[test]
     fn test_manifest_starts_empty() {
-        let _env = setup_test_env();
+        let env = setup_test_env();
 
         // Initially empty
-        let initial_manifest = load_manifest().unwrap();
+        let initial_manifest = load_manifest(env.temp_dir.path()).unwrap();
         assert!(initial_manifest.is_empty(), "Manifest should start empty");
     }
 
     #[test]
     fn test_register_thumbnail_adds_to_manifest() {
-        let _env = setup_test_env();
+        let env = setup_test_env();
 
         // Add an entry
         let test_path = PathBuf::from("/test/source/image.jpg");
-        register_thumbnail(&test_path).expect("Failed to register thumbnail");
+        register_thumbnail(&test_path, env.temp_dir.path()).expect("Failed to register thumbnail");
 
         // Load and verify
-        let updated_manifest = load_manifest().unwrap();
+        let updated_manifest = load_manifest(env.temp_dir.path()).unwrap();
         assert_eq!(updated_manifest.len(), 1);
 
         let hash = hash_for_path(&test_path);
