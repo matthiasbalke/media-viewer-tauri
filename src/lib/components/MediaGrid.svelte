@@ -175,9 +175,6 @@
             } catch (e) {
                 console.error("Thumbnail generation failed:", e);
             }
-
-            // All workers done — reset session ID
-            currentSessionId = null;
         } catch (e) {
             error = e instanceof Error ? e.message : "Failed to load media";
             loading = false;
