@@ -62,10 +62,10 @@ jobs:
           tag_name: ${{ env.VERSION }}
           draft: true
           prerelease: false
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false
           files: |
             artifacts/macos/**/*.dmg
-            artifacts/macos/**/*.app
+            artifacts/macos/macos/media-viewer.app
             artifacts/windows/**/*.msi
             artifacts/windows/**/*.exe
             artifacts/linux/**/*.deb
