@@ -7,11 +7,23 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { settingsStore } from "$lib/stores/settings.svelte";
   import SettingsModal from "$lib/components/SettingsModal.svelte";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
 
   onMount(() => {
+    // Wait for Svelte to apply all pending state changes to the DOM
+    tick().then(() => {
+      // Wait for the browser to calculate layout and paint the frame
+      requestAnimationFrame(() => {
+        // A minimal timeout ensures the OS compositor has rasterized the paint
+        setTimeout(() => {
+          getCurrentWindow().show();
+        }, 50);
+      });
+    });
+
     // Listen for the native menu shortcut event to open settings
     const unlistenPromise = listen("open-settings", () => {
       showSettings = true;
