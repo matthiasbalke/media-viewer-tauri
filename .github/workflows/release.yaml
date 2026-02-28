@@ -58,14 +58,11 @@ jobs:
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
-          name: v${{ env.VERSION }}
           tag_name: ${{ env.VERSION }}
-          draft: true
-          prerelease: false
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
           files: |
             artifacts/macos/**/*.dmg
-            artifacts/macos/macos/media-viewer.app
+            artifacts/macos/**/*.app.zip
             artifacts/windows/**/*.msi
             artifacts/windows/**/*.exe
             artifacts/linux/**/*.deb
