@@ -177,7 +177,11 @@
       {:else}
         {#each settingsStore.rootPaths as rootPath}
           <div class="mb-2 group/root relative">
-            <FolderTree path={rootPath} onSelect={handleFolderSelect} />
+            <FolderTree
+              path={rootPath}
+              {selectedPath}
+              onSelect={handleFolderSelect}
+            />
             <button
               class="absolute top-0 right-0 w-6 h-6 flex items-center justify-center
                      text-zinc-500 hover:text-red-400 rounded
