@@ -56,7 +56,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEExQ0YxMTM2NjUyMTAxNDEKUldSQkFTRmxOaEhQb2VYM3FsN2E2TFJNYXhXc29FcGZnWUJoeThBREVOQ2p4VjVoTnR6c0IyTTQK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY1OUU2OTk2RDg3NjFGNjMKUldSakgzYllsbW1lWmRYd1RPTzg2Q0pFaktVNXByaExXWldVYXorV055NjE5akhrem11SGpPV2UK",
       "endpoints": [
         "https://github.com/matthiasbalke/media-viewer/releases/latest/download/latest.json"
       ]
