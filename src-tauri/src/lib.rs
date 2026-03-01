@@ -5,6 +5,7 @@ use tauri::{
     Emitter,
 };
 use thumbnail::ThumbnailService;
+use tauri_plugin_updater::UpdaterExt;
 
 #[tauri::command]
 async fn generate_thumbnails(
@@ -40,6 +41,7 @@ async fn delete_all_thumbnails(cache_base_dir: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let handle = app.handle();
             let mut menu_builder = MenuBuilder::new(handle);
@@ -117,6 +119,50 @@ pub fn run() {
             cleanup_orphan_thumbnails,
             delete_all_thumbnails
         ])
+        .setup(|app| {
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(err) = update(handle).await {
+                    eprintln!("Failed to check for updates: {}", err);
+                }
+            });
+            Ok(())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+async fn update(app: tauri::AppHandle) -> tauri_plugin_updater::Result<()> {
+    println!("checking for updates ...");
+    if let Some(update) = app.updater()?.check().await? {
+        let mut downloaded = 0;
+
+        println!(
+            "updating to version {} released on {}",
+            update.version,
+            update
+                .date
+                .map(|d| d.to_string())
+                .unwrap_or_else(|| String::from("<unknown date>"))
+        );
+
+        // alternatively we could also call update.download() and update.install() separately
+        update
+            .download_and_install(
+                |chunk_length, content_length| {
+                    downloaded += chunk_length;
+                    println!("downloaded {downloaded} from {content_length:?}");
+                },
+                || {
+                    println!("download finished");
+                },
+            )
+            .await?;
+
+        println!("update installed");
+        app.restart();
+    } else {
+        println!("no update found.");
+    }
+
+    Ok(())
 }
