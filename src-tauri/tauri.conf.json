@@ -14,9 +14,13 @@
       {
         "title": "media-viewer",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "visible": false,
+        "backgroundColor": "#09090bff",
+        "transparent": true
       }
     ],
+    "macOSPrivateApi": true,
     "security": {
       "csp": {
         "default-src": "'self'",
