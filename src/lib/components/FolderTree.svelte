@@ -5,10 +5,11 @@
     interface Props {
         path: string;
         depth?: number;
+        selectedPath?: string | null;
         onSelect?: (path: string) => void;
     }
 
-    let { path, depth = 0, onSelect }: Props = $props();
+    let { path, depth = 0, selectedPath = null, onSelect }: Props = $props();
 
     interface FileEntry {
         name: string;
@@ -110,7 +111,7 @@
         <!-- Show root directory as top-level element -->
         {#if depth === 0}
             <button
-                class="flex items-center gap-2 w-full px-2 py-1 text-left text-sm text-zinc-300 hover:bg-zinc-800 rounded transition-colors font-medium"
+                class="flex items-center gap-2 w-full px-2 py-1 text-left text-sm hover:bg-zinc-800 rounded transition-colors {selectedPath === path ? 'text-white font-bold bg-zinc-800/50' : 'text-zinc-300 font-medium'}"
                 onclick={() => toggleDir(path)}
             >
                 <span class="text-zinc-500 w-4 text-center">
@@ -125,7 +126,7 @@
         {#if depth > 0 || expandedDirs.has(path)}
             {#each entries as entry}
                 <button
-                    class="flex items-center gap-2 w-full px-2 py-1 text-left text-sm text-zinc-300 hover:bg-zinc-800 rounded transition-colors"
+                    class="flex items-center gap-2 w-full px-2 py-1 text-left text-sm hover:bg-zinc-800 rounded transition-colors {selectedPath === entry.path ? 'text-white font-bold bg-zinc-800/50' : 'text-zinc-300'}"
                     style="padding-left: {(depth + 1) * 16}px"
                     onclick={() => toggleDir(entry.path)}
                 >
@@ -142,6 +143,7 @@
                     <FolderTree
                         path={entry.path}
                         depth={depth + 1}
+                        {selectedPath}
                         {onSelect}
                     />
                 {/if}
