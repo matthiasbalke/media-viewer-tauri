@@ -2,11 +2,13 @@ import { load } from "@tauri-apps/plugin-store";
 import { appLocalDataDir, join } from '@tauri-apps/api/path';
 
 const DEFAULT_THUMBNAIL_SIZE = 128;
+const DEFAULT_SIDEBAR_WIDTH = 256;
 const STORE_NAME = "settings.json";
 
 const storeOptions = {
     defaults: {
         thumbnailSize: DEFAULT_THUMBNAIL_SIZE,
+        sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
         rootPaths: [] as string[],
     },
     autoSave: true as const,
@@ -15,6 +17,7 @@ const storeOptions = {
 
 class SettingsStore {
     thumbnailSize = $state(DEFAULT_THUMBNAIL_SIZE);
+    sidebarWidth = $state(DEFAULT_SIDEBAR_WIDTH);
     rootPaths = $state<string[]>([]);
     cacheBaseDir = $state<string | null>(null);
     ready = $state(false);
@@ -33,6 +36,11 @@ class SettingsStore {
             const savedSize = await this.store.get("thumbnailSize") as number | null | undefined;
             if (savedSize !== null && savedSize !== undefined) {
                 this.thumbnailSize = savedSize;
+            }
+
+            const savedWidth = await this.store.get("sidebarWidth") as number | null | undefined;
+            if (savedWidth !== null && savedWidth !== undefined) {
+                this.sidebarWidth = savedWidth;
             }
 
             const savedPaths = await this.store.get("rootPaths") as string[] | null | undefined;
@@ -65,6 +73,11 @@ class SettingsStore {
     async saveSize(size: number) {
         this.thumbnailSize = size;
         this.debouncedSave("thumbnailSize", size);
+    }
+
+    async setSidebarWidth(width: number) {
+        this.sidebarWidth = width;
+        await this.saveNow("sidebarWidth", width);
     }
 
     async addRootPath(path: string) {

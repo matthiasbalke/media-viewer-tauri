@@ -60,6 +60,42 @@
   // Item count from media grid
   let mediaItemCount: number = $state(0);
 
+  // Sidebar drag state
+  let isSidebarDragging = $state(false);
+  let currentSidebarWidth = $state(256); // Default, updated from store on mount
+
+  // Sync initial width when settings are ready
+  $effect(() => {
+    if (settingsStore.ready && !isSidebarDragging) {
+      if (currentSidebarWidth === 256 && settingsStore.sidebarWidth !== 256) {
+        currentSidebarWidth = settingsStore.sidebarWidth;
+      }
+    }
+  });
+
+  function handleSidebarDragStart(e: MouseEvent) {
+    isSidebarDragging = true;
+    currentSidebarWidth = settingsStore.sidebarWidth;
+  }
+
+  function handleSidebarDragMove(e: MouseEvent) {
+    if (!isSidebarDragging) return;
+
+    // Calculate new width, clamp between 256 and 600
+    let newWidth = e.clientX;
+    if (newWidth < 256) newWidth = 256;
+    if (newWidth > 600) newWidth = 600;
+
+    currentSidebarWidth = newWidth;
+  }
+
+  function handleSidebarDragEnd() {
+    if (isSidebarDragging) {
+      isSidebarDragging = false;
+      settingsStore.setSidebarWidth(currentSidebarWidth);
+    }
+  }
+
   function handleFolderSelect(path: string) {
     selectedPath = path;
     viewingFile = null; // reset viewer when switching folders
@@ -115,9 +151,23 @@
   }
 </script>
 
-<div class="flex h-screen bg-zinc-950 text-zinc-100">
+<svelte:window
+  onmousemove={handleSidebarDragMove}
+  onmouseup={handleSidebarDragEnd}
+/>
+
+<div
+  class="flex h-screen bg-zinc-950 text-zinc-100 {isSidebarDragging
+    ? 'select-none'
+    : ''}"
+>
   <!-- Sidebar -->
-  <aside class="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col">
+  <aside
+    class="bg-zinc-900 border-r border-zinc-800 flex flex-col shrink-0"
+    style="width: {isSidebarDragging
+      ? currentSidebarWidth
+      : settingsStore.sidebarWidth}px"
+  >
     <div class="p-4 border-b border-zinc-800 flex items-center justify-between">
       <h1 class="text-lg font-semibold text-white">Media Viewer</h1>
       <div class="flex items-center gap-2">
@@ -197,6 +247,16 @@
       {/if}
     </nav>
   </aside>
+
+  <!-- Resizer Handle -->
+  <div
+    class="w-1 cursor-col-resize hover:bg-amber-500 transition-colors z-10 {isSidebarDragging
+      ? 'bg-amber-500'
+      : 'bg-transparent'}"
+    onmousedown={handleSidebarDragStart}
+    role="separator"
+    tabindex="-1"
+  ></div>
 
   <!-- Main content area -->
   <main class="flex-1 flex flex-col overflow-hidden">
