@@ -4,8 +4,8 @@ use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
     Emitter,
 };
-use thumbnail::ThumbnailService;
 use tauri_plugin_updater::UpdaterExt;
+use thumbnail::ThumbnailService;
 
 #[tauri::command]
 async fn generate_thumbnails(
@@ -127,6 +127,7 @@ pub fn run() {
                 }
             });
             Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
