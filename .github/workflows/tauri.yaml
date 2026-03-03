@@ -18,18 +18,23 @@ jobs:
           - platform: 'macos-latest' # for Arm based macs (M1 and above).
             arch: 'aarch64'
             args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest' # for Intel based macs.
+            pkgConfigPath: '/opt/homebrew/lib/pkgconfig'
+          - platform: 'macos-15-intel'
             arch: 'x86_64'
             args: '--target x86_64-apple-darwin'
+            pkgConfigPath: '/usr/local/lib/pkgconfig'
           - platform: 'ubuntu-22.04'
             arch: 'amd64'
-            args: ''
+            args: '/usr/lib/x86_64-linux-gnu/pkgconfig'
+            pkgConfigPath: ''
           - platform: 'ubuntu-22.04-arm' # Only available in public repos.
             arch: 'arm64'
-            args: ''
+            args: '/usr/lib/aarch64-linux-gnu/pkgconfig'
+            pkgConfigPath: ''
           - platform: 'windows-latest'
             arch: 'x64'
             args: ''
+            pkgConfigPath: '${{ env.VCPKG_INSTALLATION_ROOT }}/installed/x64-windows/lib/pkgconfig'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -44,7 +49,7 @@ jobs:
         if: ${{ startsWith(matrix.platform, 'ubuntu') }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils libheif1
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils libheif-dev
 
       - name: install libheif (windows only)
         if: ${{ startsWith(matrix.platform, 'windows') }}
@@ -83,6 +88,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PKG_CONFIG_PATH: ${{ matrix.pkgConfigPath }}
         with:
           tagName: v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
           releaseName: 'v__VERSION__'
@@ -97,6 +103,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PKG_CONFIG_PATH: ${{ matrix.pkgConfigPath }}
         with:
           assetNamePattern: "[platform]-[arch]-[name]-[version][ext]"
           # will be released in 1.0.0
