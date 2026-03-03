@@ -46,7 +46,7 @@ collect_deps() {
   echo "  + $name"
   cp "$lib" "$FRAMEWORKS_DIR/"
   otool -L "$lib" 2>/dev/null \
-    | awk '/^\s+\// && /\/(opt\/homebrew|usr\/local)\// && !/\/usr\/lib/{print $1}' \
+    | awk '/^[[:space:]]+\// && /\/(opt\/homebrew|usr\/local)\// && !/\/usr\/lib/{print $1}' \
     | while read -r dep; do
         collect_deps "$dep"
       done
