@@ -8,3 +8,6 @@
 
 # Populated by CI to bundle libheif DLLs on Windows — not committed
 /windows-dlls/
+
+# Populated by CI to bundle libheif dylibs on macOS — not committed
+/macos-frameworks/
