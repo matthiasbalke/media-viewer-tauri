@@ -35,6 +35,8 @@
         "avif",
         "bmp",
         "ico",
+        "heic",
+        "heif",
     ];
 
     function getExtension(filename: string): string {
