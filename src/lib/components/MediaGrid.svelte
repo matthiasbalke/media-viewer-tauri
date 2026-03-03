@@ -180,14 +180,15 @@
             video.playsInline = true;
             video.preload = "auto";
 
-            // WebKit workaround: Video must be in DOM to decode frames reliably
+            // WebKit workaround: Video must be in DOM and large enough to trigger hardware decoder
+            // A 1px element causes the HEVC decoder to skip frame decoding on some content
             video.style.position = "fixed";
-            video.style.top = "0";
+            video.style.top = "110vh"; // Off-screen below the viewport
             video.style.left = "0";
-            video.style.width = "1px";
-            video.style.height = "1px";
-            video.style.opacity = "0";
+            video.style.width = "320px";
+            video.style.height = "240px";
             video.style.pointerEvents = "none";
+            video.style.zIndex = "-9999";
             document.body.appendChild(video);
 
             const canvas = document.createElement("canvas");
@@ -206,7 +207,11 @@
                 };
 
                 video.onloadedmetadata = () => {
-                    const targetTime = Math.min(1.0, video.duration / 2);
+                    // Grab the first readily available frame (earlier for short Live Photos)
+                    const targetTime =
+                        video.duration < 3
+                            ? Math.min(0.5, video.duration * 0.1)
+                            : Math.min(1.0, video.duration / 2);
 
                     video.ontimeupdate = () => {
                         if (seekedFired) return;

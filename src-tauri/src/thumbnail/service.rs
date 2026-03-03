@@ -96,6 +96,187 @@ impl ThumbnailService {
         })
     }
 
+    /// Attempts to extract an embedded thumbnail image from a video file (e.g. iPhone .MOV / Live Photo).
+    /// QuickTime containers from iOS devices have a `thmb` track with a JPEG preview.
+    /// Returns the raw JPEG/image bytes if found, or None.
+    fn extract_embedded_video_thumbnail(path: &Path) -> Option<Vec<u8>> {
+        use mp4::{Mp4Reader, TrackType};
+
+        let file = std::fs::File::open(path).ok()?;
+        let size = file.metadata().ok()?.len();
+        let reader = std::io::BufReader::new(file);
+        let mut mp4 = Mp4Reader::read_header(reader, size).ok()?;
+
+        // iPhone MOV files embed a small JPEG thumbnail track detectable by small frame dimensions.
+        // Collect IDs + dimensions of all video tracks.
+        let mut video_tracks: Vec<(u32, u16, u16)> = mp4
+            .tracks()
+            .iter()
+            .filter_map(|(&id, track)| {
+                if matches!(track.track_type(), Ok(TrackType::Video)) {
+                    let w = track.width();
+                    let h = track.height();
+                    println!("[thumbnail] video track id={} {}x{}", id, w, h);
+                    if w > 0 && h > 0 {
+                        Some((id, w, h))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        println!(
+            "[thumbnail] {} video track(s) found in: {}",
+            video_tracks.len(),
+            path.display()
+        );
+
+        // Sort ascending by width — the thumbnail track is always the smallest
+        video_tracks.sort_by_key(|&(_, w, _)| w);
+
+        // Try tracks <= 320px wide first (thumbnail tracks), then fall through
+        for &(track_id, w, h) in &video_tracks {
+            if w > 320 {
+                println!(
+                    "[thumbnail] track {} ({}x{}) too large, stopping search",
+                    track_id, w, h
+                );
+                break;
+            }
+            println!(
+                "[thumbnail] trying thumbnail track {} ({}x{})",
+                track_id, w, h
+            );
+            if let Ok(Some(sample)) = mp4.read_sample(track_id, 1) {
+                let bytes = sample.bytes.to_vec();
+                println!(
+                    "[thumbnail] extracted {} bytes from track {}",
+                    bytes.len(),
+                    track_id
+                );
+                if !bytes.is_empty() {
+                    return Some(bytes);
+                }
+            } else {
+                println!("[thumbnail] no sample data in track {}", track_id);
+            }
+        }
+
+        println!(
+            "[thumbnail] no embedded thumbnail found in: {}",
+            path.display()
+        );
+        None
+    }
+
+    /// Extracts a single video frame as JPEG bytes using the system `ffmpeg` binary.
+    /// Searches common Homebrew installation paths on macOS.
+    /// Returns the JPEG bytes on success, or None if ffmpeg is not available/fails.
+    fn extract_video_frame_ffmpeg(path: &Path) -> Option<Vec<u8>> {
+        // Unique temp file path per video to avoid collisions
+        let file_stem = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "video".to_string());
+        let temp_out = std::env::temp_dir().join(format!("miru_thumb_{}.jpg", file_stem));
+
+        // Try common ffmpeg locations: PATH first, then Homebrew paths
+        let ffmpeg_candidates = [
+            "ffmpeg",
+            "/opt/homebrew/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+        ];
+
+        let video_duration_secs: f64 = {
+            // Quick duration estimate from file size heuristic; default 10s
+            // We seek to min(1s, duration/2) to get a representative frame
+            1.0
+        };
+
+        for ffmpeg in &ffmpeg_candidates {
+            let result = std::process::Command::new(ffmpeg)
+                .args([
+                    "-ss",
+                    &format!("{}", video_duration_secs),
+                    "-i",
+                    &path.to_string_lossy().to_string(),
+                    "-vframes",
+                    "1",
+                    "-q:v",
+                    "3",
+                    "-update",
+                    "1",
+                    "-y",
+                    &temp_out.to_string_lossy().to_string(),
+                ])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+
+            if let Ok(status) = result {
+                if status.success() {
+                    if let Ok(bytes) = std::fs::read(&temp_out) {
+                        let _ = std::fs::remove_file(&temp_out);
+                        if !bytes.is_empty() {
+                            println!(
+                                "[thumbnail] ffmpeg extracted {} bytes from: {}",
+                                bytes.len(),
+                                path.display()
+                            );
+                            return Some(bytes);
+                        }
+                    }
+                } else {
+                    // Seek position may be past end for short videos — retry at start
+                    let result2 = std::process::Command::new(ffmpeg)
+                        .args([
+                            "-i",
+                            &path.to_string_lossy().to_string(),
+                            "-vframes",
+                            "1",
+                            "-q:v",
+                            "3",
+                            "-update",
+                            "1",
+                            "-y",
+                            &temp_out.to_string_lossy().to_string(),
+                        ])
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .status();
+
+                    if let Ok(s2) = result2 {
+                        if s2.success() {
+                            if let Ok(bytes) = std::fs::read(&temp_out) {
+                                let _ = std::fs::remove_file(&temp_out);
+                                if !bytes.is_empty() {
+                                    println!(
+                                        "[thumbnail] ffmpeg (no-seek) extracted {} bytes from: {}",
+                                        bytes.len(),
+                                        path.display()
+                                    );
+                                    return Some(bytes);
+                                }
+                            }
+                        }
+                    }
+                }
+                // ffmpeg was found (no NotFound error), stop searching paths
+                break;
+            }
+        }
+
+        let _ = std::fs::remove_file(&temp_out);
+        println!(
+            "[thumbnail] ffmpeg could not extract frame from: {}",
+            path.display()
+        );
+        None
+    }
+
     /// Generates a thumbnail for a single file.
     /// Returns the thumbnail path on success.
     fn generate_single(source: &Path, cache_base_dir: &Path) -> Result<String, String> {
@@ -166,10 +347,10 @@ impl ThumbnailService {
                 let path_str = normalize_path(&path.to_string_lossy());
 
                 if Self::is_video(&path) {
-                    let thumb_path =
+                    let cache_path =
                         cache::thumbnail_path(&path, Path::new(&cache_base_dir_worker));
 
-                    if let Ok(tp) = thumb_path {
+                    if let Ok(tp) = cache_path {
                         if tp.exists() && !cache::is_stale(&path, &tp) {
                             let _ = app.emit(
                                 "thumbnail-update",
@@ -182,9 +363,49 @@ impl ThumbnailService {
                             );
                             return;
                         }
+
+                        // Try to extract embedded thumbnail from the container (e.g. iPhone Live Photo thmb track)
+                        let cache_base = PathBuf::from(&cache_base_dir_worker);
+
+                        // Helper closure to save raw bytes as a thumbnail and emit ready
+                        let try_save = |thumb_bytes: Vec<u8>| -> bool {
+                            if cache::ensure_cache_dir(&cache_base).is_ok() {
+                                if std::fs::write(&tp, &thumb_bytes).is_ok() {
+                                    let _ = cache::register_thumbnail(&path, &cache_base);
+                                    return true;
+                                }
+                            }
+                            false
+                        };
+
+                        // 1. Try embedded thumbnail track (e.g. QuickTime thmb for some MOV files)
+                        let mut resolved_bytes: Option<Vec<u8>> =
+                            Self::extract_embedded_video_thumbnail(&path);
+
+                        // 2. Fallback: use system ffmpeg to extract a frame
+                        if resolved_bytes.is_none() {
+                            resolved_bytes = tokio::task::block_in_place(|| {
+                                Self::extract_video_frame_ffmpeg(&path)
+                            });
+                        }
+
+                        if let Some(thumb_bytes) = resolved_bytes {
+                            if try_save(thumb_bytes) {
+                                let _ = app.emit(
+                                    "thumbnail-update",
+                                    ThumbnailUpdate {
+                                        path: path_str,
+                                        status: "ready".to_string(),
+                                        thumbnail_path: Some(normalize_path(&tp.to_string_lossy())),
+                                        session_id,
+                                    },
+                                );
+                                return;
+                            }
+                        }
                     }
 
-                    // Not cached, tell frontend to render it
+                    // No embedded thumbnail found, tell frontend to render it
                     let _ = app.emit(
                         "thumbnail-update",
                         ThumbnailUpdate {
