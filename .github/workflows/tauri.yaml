@@ -23,14 +23,17 @@ jobs:
             arch: 'x86_64'
             args: '--target x86_64-apple-darwin'
             pkgConfigPath: '/usr/local/lib/pkgconfig'
+
           - platform: 'ubuntu-22.04'
             arch: 'amd64'
-            args: '/usr/lib/x86_64-linux-gnu/pkgconfig'
-            pkgConfigPath: ''
+            args: ''
+            pkgConfigPath: '/usr/lib/x86_64-linux-gnu/pkgconfig'
+
           - platform: 'ubuntu-22.04-arm' # Only available in public repos.
             arch: 'arm64'
-            args: '/usr/lib/aarch64-linux-gnu/pkgconfig'
-            pkgConfigPath: ''
+            args: ''
+            pkgConfigPath: '/usr/lib/aarch64-linux-gnu/pkgconfig'
+            
           - platform: 'windows-latest'
             arch: 'x64'
             args: ''
