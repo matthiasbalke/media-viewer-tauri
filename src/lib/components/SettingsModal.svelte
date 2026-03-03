@@ -252,6 +252,37 @@
                                 {deleteAllMessage}
                             </p>
                         {/if}
+
+                        <div class="h-px bg-zinc-800/50 my-2"></div>
+
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-sm font-medium text-zinc-200">
+                                    Automatic Cleanup
+                                </p>
+                                <p class="text-xs text-zinc-500 mt-1 max-w-sm">
+                                    Delete the thumbnails backing a root
+                                    directory when you remove the folder from
+                                    your tree.
+                                </p>
+                            </div>
+                            <label
+                                class="relative inline-flex items-center cursor-pointer pt-1"
+                            >
+                                <input
+                                    type="checkbox"
+                                    class="sr-only peer"
+                                    checked={settingsStore.cleanupCacheOnRootRemove}
+                                    onchange={(e) =>
+                                        settingsStore.setCleanupCacheOnRootRemove(
+                                            e.currentTarget.checked,
+                                        )}
+                                />
+                                <div
+                                    class="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[6px] after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"
+                                ></div>
+                            </label>
+                        </div>
                     </div>
                 </div>
 

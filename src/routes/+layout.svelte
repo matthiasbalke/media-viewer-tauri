@@ -129,9 +129,12 @@
   }
 
   async function removeRootPath(pathToRemove: string) {
-    // Clean up thumbnails for this directory tree
+    // Clean up thumbnails for this directory tree if enabled
     try {
-      if (settingsStore.cacheBaseDir) {
+      if (
+        settingsStore.cacheBaseDir &&
+        settingsStore.cleanupCacheOnRootRemove
+      ) {
         await invoke("cleanup_thumbnails_for_dir", {
           dir: pathToRemove,
           cacheBaseDir: settingsStore.cacheBaseDir,
