@@ -6,7 +6,12 @@
         name: string;
         path: string;
         isVideo: boolean;
-        thumbnailState: "loading" | "ready" | "error" | "unsupported";
+        thumbnailState:
+            | "loading"
+            | "ready"
+            | "error"
+            | "unsupported"
+            | "frontend-render";
         thumbnailSrc: string | null;
     }
 

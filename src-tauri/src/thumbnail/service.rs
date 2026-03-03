@@ -13,6 +13,8 @@ const SUPPORTED_EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif", "ico",
 ];
 
+const VIDEO_EXTENSIONS: &[&str] = &["mp4", "webm", "mkv", "avi", "mov", "wmv", "flv", "m4v"];
+
 const SUPPORTED_FORMATS: &[image::ImageFormat] = &[
     image::ImageFormat::Jpeg,
     image::ImageFormat::Png,
@@ -51,6 +53,13 @@ impl ThumbnailService {
         path.extension()
             .and_then(|ext| ext.to_str())
             .map(|ext| SUPPORTED_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
+            .unwrap_or(false)
+    }
+
+    fn is_video(path: &Path) -> bool {
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| VIDEO_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
             .unwrap_or(false)
     }
 
@@ -156,6 +165,38 @@ impl ThumbnailService {
 
                 let path_str = normalize_path(&path.to_string_lossy());
 
+                if Self::is_video(&path) {
+                    let thumb_path =
+                        cache::thumbnail_path(&path, Path::new(&cache_base_dir_worker));
+
+                    if let Ok(tp) = thumb_path {
+                        if tp.exists() && !cache::is_stale(&path, &tp) {
+                            let _ = app.emit(
+                                "thumbnail-update",
+                                ThumbnailUpdate {
+                                    path: path_str,
+                                    status: "ready".to_string(),
+                                    thumbnail_path: Some(normalize_path(&tp.to_string_lossy())),
+                                    session_id,
+                                },
+                            );
+                            return;
+                        }
+                    }
+
+                    // Not cached, tell frontend to render it
+                    let _ = app.emit(
+                        "thumbnail-update",
+                        ThumbnailUpdate {
+                            path: path_str,
+                            status: "frontend-render".to_string(),
+                            thumbnail_path: None,
+                            session_id,
+                        },
+                    );
+                    return;
+                }
+
                 if !Self::is_supported(&path) {
                     let _ = app.emit(
                         "thumbnail-update",
@@ -225,6 +266,39 @@ impl ThumbnailService {
         }
 
         Ok(())
+    }
+
+    /// Saves a base64 encoded thumbnail to the cache directory
+    pub fn save_video_thumbnail(
+        source_path: String,
+        base64_data: String,
+        cache_base_dir: String,
+    ) -> Result<String, String> {
+        let source = Path::new(&source_path);
+        let cache_dir = Path::new(&cache_base_dir);
+
+        cache::ensure_cache_dir(cache_dir)?;
+
+        let thumb_path = cache::thumbnail_path(source, cache_dir)?;
+
+        // Strip the data URI prefix if it exists (e.g. data:image/jpeg;base64,)
+        let b64_contents = if let Some(idx) = base64_data.find(',') {
+            &base64_data[idx + 1..]
+        } else {
+            &base64_data
+        };
+
+        use base64::{engine::general_purpose, Engine as _};
+        let image_data = general_purpose::STANDARD
+            .decode(b64_contents)
+            .map_err(|e| format!("Failed to decode base64: {}", e))?;
+
+        std::fs::write(&thumb_path, image_data)
+            .map_err(|e| format!("Failed to write thumbnail file: {}", e))?;
+
+        cache::register_thumbnail(source, cache_dir)?;
+
+        Ok(thumb_path.to_string_lossy().to_string())
     }
 }
 
