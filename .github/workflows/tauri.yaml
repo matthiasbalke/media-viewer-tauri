@@ -46,7 +46,11 @@ jobs:
       - name: install libheif (macOS only)
         if: ${{ startsWith(matrix.platform, 'macos') }}
         run: |
-          brew install libheif dylibbundler
+          brew install libheif
+
+      - name: collect libheif frameworks for bundling (macOS only)
+        if: ${{ startsWith(matrix.platform, 'macos') }}
+        run: ./scripts/update-macos-tauri-conf.sh
 
       - name: cache libheif build (ubuntu only)
         if: ${{ startsWith(matrix.platform, 'ubuntu') }}
@@ -153,73 +157,6 @@ jobs:
           # will be released in 1.0.0
           #uploadWorkflowArtifacts: true
           args: ${{ matrix.args }} --features libheif --no-sign
-
-      - name: bundle macOS dylibs into .app
-        if: ${{ startsWith(matrix.platform, 'macos') }}
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          set -e
-
-          # Locate the bundle dir — path varies with --target flag
-          TARGET=$(echo "${{ matrix.args }}" | grep -oE '[a-z0-9_]+-apple-darwin' | head -1)
-          if [ -n "$TARGET" ]; then
-            BUNDLE_DIR="src-tauri/target/$TARGET/release/bundle/macos"
-          else
-            BUNDLE_DIR="src-tauri/target/release/bundle/macos"
-          fi
-
-          APP=$(find "$BUNDLE_DIR" -maxdepth 1 -name "*.app" | head -1)
-          echo "Patching: $APP"
-
-          # The main binary inside the .app
-          APP_BIN_NAME=$(ls "$APP/Contents/MacOS/" | head -1)
-          APP_BINARY="$APP/Contents/MacOS/$APP_BIN_NAME"
-          FRAMEWORKS="$APP/Contents/Frameworks"
-          mkdir -p "$FRAMEWORKS"
-
-          # Walk the full libheif dependency tree and copy everything into Frameworks/
-          dylibbundler -od -b \
-            -x "$APP_BINARY" \
-            -d "$FRAMEWORKS" \
-            -p "@executable_path/../Frameworks/"
-
-          echo "Bundled frameworks:"
-          ls "$FRAMEWORKS"
-
-          # Recreate the updater .tar.gz with the now-patched .app
-          APP_NAME=$(basename "$APP")
-          TAR_FILE="${APP_NAME%.app}.app.tar.gz"
-          cd "$BUNDLE_DIR"
-          tar czf "$TAR_FILE" "$APP_NAME"
-
-          # Re-sign the new archive with the Tauri updater key (if present)
-          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            cd "$GITHUB_WORKSPACE"
-            bunx tauri signer sign \
-              "$BUNDLE_DIR/$TAR_FILE" \
-              --private-key "$TAURI_SIGNING_PRIVATE_KEY" \
-              --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
-          fi
-
-          # Rebuild the DMG from the patched .app (DMGs live in bundle/dmg, not bundle/macos)
-          DMG_DIR="$(dirname "$BUNDLE_DIR")/dmg"
-          DMG=$(ls "$DMG_DIR"/*.dmg 2>/dev/null | head -1)
-          if [ -n "$DMG" ]; then
-            VOLNAME="${APP_NAME%.app}"
-            rm "$DMG"
-            hdiutil create -volname "$VOLNAME" -srcfolder "$BUNDLE_DIR/$APP_NAME" -ov -format UDZO "$DMG"
-
-            # Re-sign the DMG with the Tauri updater key (if present)
-            if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-              cd "$GITHUB_WORKSPACE"
-              bunx tauri signer sign \
-                "$DMG" \
-                --private-key "$TAURI_SIGNING_PRIVATE_KEY" \
-                --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
-            fi
-          fi
 
       - name: Upload macOS bundle artifacts
         uses: actions/upload-artifact@v6
