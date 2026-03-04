@@ -67,13 +67,16 @@ collect_deps "$(brew --prefix libheif)/lib/libheif.dylib"
 echo ""
 echo "Generating $CONF_FILE ..."
 
-python3 - <<EOF
-import json
+# Write paths to a temp file (one per line) — avoids bash 4.4-only @Q expansion
+_TMP_PATHS=$(mktemp)
+printf '%s\n' "${FRAMEWORK_PATHS[@]}" > "$_TMP_PATHS"
 
-paths = ${FRAMEWORK_PATHS[@]@Q}
-# Parse the bash array passed as quoted strings
-import shlex
-framework_list = shlex.split(paths)
+python3 - "$_TMP_PATHS" "$CONF_FILE" <<'EOF'
+import json, sys
+
+paths_file, conf_file = sys.argv[1], sys.argv[2]
+with open(paths_file) as f:
+    framework_list = [l.rstrip("\n") for l in f if l.strip()]
 
 config = {
     "bundle": {
@@ -83,11 +86,13 @@ config = {
     }
 }
 
-with open("$CONF_FILE", "w") as fp:
+with open(conf_file, "w") as fp:
     json.dump(config, fp, indent=2)
     fp.write("\n")
 
-print(open("$CONF_FILE").read())
+print(open(conf_file).read())
 EOF
+
+rm -f "$_TMP_PATHS"
 
 echo "Done. Commit src-tauri/tauri.macos.conf.json to version control."
