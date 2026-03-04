@@ -13,6 +13,10 @@ const SUPPORTED_EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "tif", "ico",
 ];
 
+const VIDEO_EXTENSIONS: &[&str] = &["mp4", "webm", "mkv", "avi", "mov", "wmv", "flv", "m4v"];
+
+const HEIC_EXTENSIONS: &[&str] = &["heic", "heif"];
+
 const SUPPORTED_FORMATS: &[image::ImageFormat] = &[
     image::ImageFormat::Jpeg,
     image::ImageFormat::Png,
@@ -54,6 +58,20 @@ impl ThumbnailService {
             .unwrap_or(false)
     }
 
+    fn is_video(path: &Path) -> bool {
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| VIDEO_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
+            .unwrap_or(false)
+    }
+
+    fn is_heic(path: &Path) -> bool {
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| HEIC_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
+            .unwrap_or(false)
+    }
+
     /// Opens an image, parses magic bytes to guess the format, and returns the reader.
     fn get_image_reader(
         source: &Path,
@@ -85,6 +103,302 @@ impl ThumbnailService {
                 e
             )
         })
+    }
+
+    /// Attempts to extract an embedded thumbnail image from a video file (e.g. iPhone .MOV / Live Photo).
+    /// QuickTime containers from iOS devices have a `thmb` track with a JPEG preview.
+    /// Returns the raw JPEG/image bytes if found, or None.
+    fn extract_embedded_video_thumbnail(path: &Path) -> Option<Vec<u8>> {
+        use mp4::{Mp4Reader, TrackType};
+
+        let file = std::fs::File::open(path).ok()?;
+        let size = file.metadata().ok()?.len();
+        let reader = std::io::BufReader::new(file);
+        let mut mp4 = Mp4Reader::read_header(reader, size).ok()?;
+
+        // iPhone MOV files embed a small JPEG thumbnail track detectable by small frame dimensions.
+        // Collect IDs + dimensions of all video tracks.
+        let mut video_tracks: Vec<(u32, u16, u16)> = mp4
+            .tracks()
+            .iter()
+            .filter_map(|(&id, track)| {
+                if matches!(track.track_type(), Ok(TrackType::Video)) {
+                    let w = track.width();
+                    let h = track.height();
+                    if w > 0 && h > 0 {
+                        Some((id, w, h))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Sort ascending by width — the thumbnail track is always the smallest
+        video_tracks.sort_by_key(|&(_, w, _)| w);
+
+        // Try tracks <= 320px wide first (thumbnail tracks), then fall through
+        for &(track_id, w, _) in &video_tracks {
+            if w > 320 {
+                break;
+            }
+            if let Ok(Some(sample)) = mp4.read_sample(track_id, 1) {
+                let bytes = sample.bytes.to_vec();
+                if !bytes.is_empty() {
+                    return Some(bytes);
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Extracts the embedded JPEG thumbnail from a HEIC/HEIF file using EXIF IFD1 data.
+    /// iPhone HEIC files always contain a small JPEG preview in their EXIF block.
+    /// Returns the raw JPEG bytes if found, or None.
+    fn extract_heic_thumbnail(path: &Path) -> Option<Vec<u8>> {
+        use exif::{In, Reader, Tag, Value};
+        use std::io::BufReader;
+
+        let file = std::fs::File::open(path).ok()?;
+        let mut buf = BufReader::new(file);
+
+        // kamadak-exif supports reading EXIF from HEIF/HEIC containers directly
+        let exif = Reader::new().read_from_container(&mut buf).ok()?;
+
+        // IFD1 contains the embedded thumbnail image reference
+        let jpeg_offset = match exif.get_field(Tag::JPEGInterchangeFormat, In::THUMBNAIL) {
+            Some(f) => match &f.value {
+                Value::Long(v) => match v.first() {
+                    Some(&o) => o as usize,
+                    None => return None,
+                },
+                _ => return None,
+            },
+            None => return None,
+        };
+
+        let jpeg_length = match exif.get_field(Tag::JPEGInterchangeFormatLength, In::THUMBNAIL) {
+            Some(f) => match &f.value {
+                Value::Long(v) => match v.first() {
+                    Some(&l) => l as usize,
+                    None => return None,
+                },
+                _ => return None,
+            },
+            None => return None,
+        };
+
+        if jpeg_length == 0 {
+            return None;
+        }
+
+        // exif.buf() returns the raw TIFF-format EXIF bytes.
+        // JPEGInterchangeFormat offset is relative to the TIFF header (buf start).
+        let raw = exif.buf();
+        let end = jpeg_offset.saturating_add(jpeg_length);
+        if end > raw.len() {
+            return None;
+        }
+
+        let thumb_bytes = raw[jpeg_offset..end].to_vec();
+
+        // Validate JPEG magic bytes (0xFF 0xD8 0xFF)
+        if thumb_bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+            Some(thumb_bytes)
+        } else {
+            None
+        }
+    }
+
+    /// Extracts a proper thumbnail from any HEIC/HEIF file using the system `libheif` library.
+    /// Handles Grid-encoded HEIC (portrait mode, computational photography) by correctly
+    /// assembling tiles via the HEIF primary image item — something ffmpeg cannot do alone.
+    ///
+    /// Requires the `libheif` Cargo feature and the system `libheif` library:
+    ///   macOS:  brew install libheif
+    ///   Linux:  apt install libheif1
+    #[cfg(feature = "libheif")]
+    fn extract_heic_thumbnail_libheif(path: &Path) -> Option<Vec<u8>> {
+        use libheif_rs::{ColorSpace, HeifContext, LibHeif, RgbChroma};
+
+        // HeifContext::read_from_file is a static method in libheif-rs 1.1.0
+        let ctx = HeifContext::read_from_file(&path.to_string_lossy()).ok()?;
+        let handle = ctx.primary_image_handle().ok()?;
+
+        let lib = LibHeif::new();
+
+        // Decode the primary image (correctly assembles Grid HEIC tiles)
+        let image = lib
+            .decode(&handle, ColorSpace::Rgb(RgbChroma::Rgb), None)
+            .ok()?;
+
+        // Scale down via libheif before copying pixels — much more memory-efficient
+        // than decoding the full 12MP image and resizing in Rust.
+        let w = image.width();
+        let h = image.height();
+        let scaled = if w > THUMBNAIL_SIZE || h > THUMBNAIL_SIZE {
+            let (tw, th) = if w >= h {
+                (THUMBNAIL_SIZE, h * THUMBNAIL_SIZE / w.max(1))
+            } else {
+                (w * THUMBNAIL_SIZE / h.max(1), THUMBNAIL_SIZE)
+            };
+            image.scale(tw, th, None).ok()?
+        } else {
+            image
+        };
+
+        let planes = scaled.planes();
+        let plane = planes.interleaved?;
+
+        let pw = plane.width as usize;
+        let ph = plane.height as usize;
+        let stride = plane.stride;
+        let raw = plane.data;
+
+        // De-stride the pixel buffer (libheif may pad rows)
+        let rgb_bytes: Vec<u8> = if stride == pw * 3 {
+            raw.to_vec()
+        } else {
+            let mut out = Vec::with_capacity(pw * ph * 3);
+            for row in 0..ph {
+                let start = row * stride;
+                out.extend_from_slice(&raw[start..start + pw * 3]);
+            }
+            out
+        };
+
+        let img = image::RgbImage::from_raw(pw as u32, ph as u32, rgb_bytes)?;
+        let mut jpeg_bytes = Vec::new();
+        image::DynamicImage::ImageRgb8(img)
+            .write_to(
+                &mut std::io::Cursor::new(&mut jpeg_bytes),
+                image::ImageFormat::Jpeg,
+            )
+            .ok()?;
+
+        if jpeg_bytes.is_empty() {
+            None
+        } else {
+            Some(jpeg_bytes)
+        }
+    }
+
+    /// Extracts a single video frame as JPEG bytes using the system `ffmpeg` binary.
+
+    /// Searches common Homebrew installation paths on macOS.
+    /// Returns the JPEG bytes on success, or None if ffmpeg is not available/fails.
+    fn extract_video_frame_ffmpeg(path: &Path) -> Option<Vec<u8>> {
+        // Unique temp file path per video to avoid collisions
+        let file_stem = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "video".to_string());
+        let temp_out = std::env::temp_dir().join(format!("video_thumb_{}.jpg", file_stem));
+
+        // Try common ffmpeg locations: PATH first, then Homebrew paths
+        let ffmpeg_candidates = [
+            "ffmpeg",
+            "/opt/homebrew/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+        ];
+
+        let video_duration_secs: f64 = {
+            // Quick duration estimate from file size heuristic; default 10s
+            // We seek to min(1s, duration/2) to get a representative frame
+            1.0
+        };
+
+        for ffmpeg in &ffmpeg_candidates {
+            let result = std::process::Command::new(ffmpeg)
+                .args([
+                    "-ss",
+                    &format!("{}", video_duration_secs),
+                    "-i",
+                    &path.to_string_lossy().to_string(),
+                    "-vframes",
+                    "1",
+                    "-q:v",
+                    "3",
+                    "-update",
+                    "1",
+                    "-y",
+                    &temp_out.to_string_lossy().to_string(),
+                ])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+
+            if let Ok(status) = result {
+                if status.success() {
+                    if let Ok(bytes) = std::fs::read(&temp_out) {
+                        let _ = std::fs::remove_file(&temp_out);
+                        if !bytes.is_empty() {
+                            println!(
+                                "[thumbnail] ffmpeg extracted {} bytes from: {}",
+                                bytes.len(),
+                                path.display()
+                            );
+                            return Some(bytes);
+                        }
+                    }
+                } else {
+                    // no-op: fall through to retry below
+                }
+
+                // Retry without -ss: catches both non-zero exit (seek past EOF) and
+                // exit-0 with empty output (e.g. still images like HEIC where -ss produces nothing)
+                let needs_retry = std::fs::metadata(&temp_out)
+                    .map(|m| m.len() == 0)
+                    .unwrap_or(true); // file missing → also retry
+
+                if needs_retry {
+                    let result2 = std::process::Command::new(ffmpeg)
+                        .args([
+                            "-i",
+                            &path.to_string_lossy().to_string(),
+                            "-vframes",
+                            "1",
+                            "-q:v",
+                            "3",
+                            "-update",
+                            "1",
+                            "-y",
+                            &temp_out.to_string_lossy().to_string(),
+                        ])
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .status();
+
+                    if let Ok(s2) = result2 {
+                        if s2.success() {
+                            if let Ok(bytes) = std::fs::read(&temp_out) {
+                                let _ = std::fs::remove_file(&temp_out);
+                                if !bytes.is_empty() {
+                                    println!(
+                                        "[thumbnail] ffmpeg (no-seek) extracted {} bytes from: {}",
+                                        bytes.len(),
+                                        path.display()
+                                    );
+                                    return Some(bytes);
+                                }
+                            }
+                        }
+                    }
+                }
+                // ffmpeg was found (no NotFound error), stop searching paths
+                break;
+            }
+        }
+
+        let _ = std::fs::remove_file(&temp_out);
+        println!(
+            "[thumbnail] ffmpeg could not extract frame from: {}",
+            path.display()
+        );
+        None
     }
 
     /// Generates a thumbnail for a single file.
@@ -156,6 +470,152 @@ impl ThumbnailService {
 
                 let path_str = normalize_path(&path.to_string_lossy());
 
+                if Self::is_video(&path) {
+                    let cache_path =
+                        cache::thumbnail_path(&path, Path::new(&cache_base_dir_worker));
+
+                    if let Ok(tp) = cache_path {
+                        if tp.exists() && !cache::is_stale(&path, &tp) {
+                            let _ = app.emit(
+                                "thumbnail-update",
+                                ThumbnailUpdate {
+                                    path: path_str,
+                                    status: "ready".to_string(),
+                                    thumbnail_path: Some(normalize_path(&tp.to_string_lossy())),
+                                    session_id,
+                                },
+                            );
+                            return;
+                        }
+
+                        // Try to extract embedded thumbnail from the container (e.g. iPhone Live Photo thmb track)
+                        let cache_base = PathBuf::from(&cache_base_dir_worker);
+
+                        // Helper closure to save raw bytes as a thumbnail and emit ready
+                        let try_save = |thumb_bytes: Vec<u8>| -> bool {
+                            if cache::ensure_cache_dir(&cache_base).is_ok() {
+                                if std::fs::write(&tp, &thumb_bytes).is_ok() {
+                                    let _ = cache::register_thumbnail(&path, &cache_base);
+                                    return true;
+                                }
+                            }
+                            false
+                        };
+
+                        // 1. Try embedded thumbnail track (e.g. QuickTime thmb for some MOV files)
+                        let mut resolved_bytes: Option<Vec<u8>> =
+                            Self::extract_embedded_video_thumbnail(&path);
+
+                        // 2. Fallback: use system ffmpeg to extract a frame
+                        if resolved_bytes.is_none() {
+                            resolved_bytes = tokio::task::block_in_place(|| {
+                                Self::extract_video_frame_ffmpeg(&path)
+                            });
+                        }
+
+                        if let Some(thumb_bytes) = resolved_bytes {
+                            if try_save(thumb_bytes) {
+                                let _ = app.emit(
+                                    "thumbnail-update",
+                                    ThumbnailUpdate {
+                                        path: path_str,
+                                        status: "ready".to_string(),
+                                        thumbnail_path: Some(normalize_path(&tp.to_string_lossy())),
+                                        session_id,
+                                    },
+                                );
+                                return;
+                            }
+                        }
+                    }
+
+                    // No embedded thumbnail found, tell frontend to render it
+                    let _ = app.emit(
+                        "thumbnail-update",
+                        ThumbnailUpdate {
+                            path: path_str,
+                            status: "frontend-render".to_string(),
+                            thumbnail_path: None,
+                            session_id,
+                        },
+                    );
+                    return;
+                }
+
+                // HEIC/HEIF: try embedded EXIF thumbnail first, then ffmpeg
+                if Self::is_heic(&path) {
+                    let cache_path =
+                        cache::thumbnail_path(&path, Path::new(&cache_base_dir_worker));
+
+                    if let Ok(tp) = cache_path {
+                        if tp.exists() && !cache::is_stale(&path, &tp) {
+                            let _ = app.emit(
+                                "thumbnail-update",
+                                ThumbnailUpdate {
+                                    path: path_str,
+                                    status: "ready".to_string(),
+                                    thumbnail_path: Some(normalize_path(&tp.to_string_lossy())),
+                                    session_id,
+                                },
+                            );
+                            return;
+                        }
+
+                        let cache_base = PathBuf::from(&cache_base_dir_worker);
+
+                        // 1. Try libheif for proper Grid HEIC support (optional feature)
+                        #[cfg(feature = "libheif")]
+                        let mut resolved = tokio::task::block_in_place(|| {
+                            Self::extract_heic_thumbnail_libheif(&path)
+                        });
+                        #[cfg(not(feature = "libheif"))]
+                        let mut resolved: Option<Vec<u8>> = None;
+
+                        // 2. Try EXIF IFD1 embedded JPEG thumbnail (regular iPhone HEIC)
+                        if resolved.is_none() {
+                            resolved =
+                                tokio::task::block_in_place(|| Self::extract_heic_thumbnail(&path));
+                        }
+
+                        // 3. Fallback to ffmpeg (works for non-Grid HEIC, may crop for Grid)
+                        if resolved.is_none() {
+                            resolved = tokio::task::block_in_place(|| {
+                                Self::extract_video_frame_ffmpeg(&path)
+                            });
+                        }
+
+                        if let Some(thumb_bytes) = resolved {
+                            if cache::ensure_cache_dir(&cache_base).is_ok()
+                                && std::fs::write(&tp, &thumb_bytes).is_ok()
+                            {
+                                let _ = cache::register_thumbnail(&path, &cache_base);
+                                let _ = app.emit(
+                                    "thumbnail-update",
+                                    ThumbnailUpdate {
+                                        path: path_str,
+                                        status: "ready".to_string(),
+                                        thumbnail_path: Some(normalize_path(&tp.to_string_lossy())),
+                                        session_id,
+                                    },
+                                );
+                                return;
+                            }
+                        }
+                    }
+
+                    // No thumbnail could be generated
+                    let _ = app.emit(
+                        "thumbnail-update",
+                        ThumbnailUpdate {
+                            path: path_str,
+                            status: "unsupported".to_string(),
+                            thumbnail_path: None,
+                            session_id,
+                        },
+                    );
+                    return;
+                }
+
                 if !Self::is_supported(&path) {
                     let _ = app.emit(
                         "thumbnail-update",
@@ -225,6 +685,39 @@ impl ThumbnailService {
         }
 
         Ok(())
+    }
+
+    /// Saves a base64 encoded thumbnail to the cache directory
+    pub fn save_video_thumbnail(
+        source_path: String,
+        base64_data: String,
+        cache_base_dir: String,
+    ) -> Result<String, String> {
+        let source = Path::new(&source_path);
+        let cache_dir = Path::new(&cache_base_dir);
+
+        cache::ensure_cache_dir(cache_dir)?;
+
+        let thumb_path = cache::thumbnail_path(source, cache_dir)?;
+
+        // Strip the data URI prefix if it exists (e.g. data:image/jpeg;base64,)
+        let b64_contents = if let Some(idx) = base64_data.find(',') {
+            &base64_data[idx + 1..]
+        } else {
+            &base64_data
+        };
+
+        use base64::{engine::general_purpose, Engine as _};
+        let image_data = general_purpose::STANDARD
+            .decode(b64_contents)
+            .map_err(|e| format!("Failed to decode base64: {}", e))?;
+
+        std::fs::write(&thumb_path, image_data)
+            .map_err(|e| format!("Failed to write thumbnail file: {}", e))?;
+
+        cache::register_thumbnail(source, cache_dir)?;
+
+        Ok(thumb_path.to_string_lossy().to_string())
     }
 }
 

@@ -18,28 +18,81 @@ jobs:
           - platform: 'macos-latest' # for Arm based macs (M1 and above).
             arch: 'aarch64'
             args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest' # for Intel based macs.
+            pkgConfigPath: '/opt/homebrew/lib/pkgconfig'
+          - platform: 'macos-15-intel'
             arch: 'x86_64'
             args: '--target x86_64-apple-darwin'
+            pkgConfigPath: '/usr/local/lib/pkgconfig'
+
           - platform: 'ubuntu-22.04'
             arch: 'amd64'
             args: ''
+            pkgConfigPath: '/usr/local/lib/pkgconfig'
+
           - platform: 'ubuntu-22.04-arm' # Only available in public repos.
             arch: 'arm64'
             args: ''
+            pkgConfigPath: '/usr/local/lib/pkgconfig'
+
           - platform: 'windows-latest'
             arch: 'x64'
             args: ''
+            pkgConfigPath: 'C:\\vcpkg\\installed\\x64-windows-static-md\\lib\\pkgconfig'
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' || matrix.platform == 'ubuntu-22.04-arm' # This must match the platform value defined above.
+      - name: install libheif (macOS only)
+        if: ${{ startsWith(matrix.platform, 'macos') }}
+        run: |
+          brew install libheif
+
+      - name: collect libheif frameworks for bundling (macOS only)
+        if: ${{ startsWith(matrix.platform, 'macos') }}
+        run: ./scripts/update-macos-tauri-conf.sh
+
+      - name: cache libheif build (ubuntu only)
+        if: ${{ startsWith(matrix.platform, 'ubuntu') }}
+        id: cache-libheif
+        uses: actions/cache@v4
+        with:
+          path: /usr/local
+          key: libheif-1.21.2-${{ matrix.platform }}-${{ matrix.arch }}
+
+      - name: install apt dependencies (ubuntu only)
+        if: ${{ startsWith(matrix.platform, 'ubuntu') }}
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - name: compile libheif (ubuntu only)
+        if: ${{ startsWith(matrix.platform, 'ubuntu') && steps.cache-libheif.outputs.cache-hit != 'true' }}
+        run: |
+          sudo apt-get install -y cmake libde265-dev libx265-dev libjpeg-dev libpng-dev
+          # Ubuntu apt repos only have libheif 1.12-1.17; libheif-rs 2.7.0 requires >= 1.21
+          LIBHEIF_VERSION=1.21.2
+          wget -q "https://github.com/strukturag/libheif/releases/download/v${LIBHEIF_VERSION}/libheif-${LIBHEIF_VERSION}.tar.gz"
+          tar -xzf "libheif-${LIBHEIF_VERSION}.tar.gz"
+          cd "libheif-${LIBHEIF_VERSION}"
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DWITH_EXAMPLES=OFF -DWITH_TESTS=OFF .
+          make -j$(nproc)
+          sudo make install
+
+      - name: register libheif (ubuntu only)
+        if: ${{ startsWith(matrix.platform, 'ubuntu') }}
+        run: sudo ldconfig
+
+      - name: install libheif (windows only)
+        if: ${{ startsWith(matrix.platform, 'windows') }}
+        env:
+          VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+          ACTIONS_CACHE_URL: ${{ env.ACTIONS_CACHE_URL }}
+          ACTIONS_RUNTIME_TOKEN: ${{ env.ACTIONS_RUNTIME_TOKEN }}
+        run: |
+          vcpkg install libheif:x64-windows-static-md
+          vcpkg integrate install
 
       - name: setup node
         uses: actions/setup-node@v4
@@ -73,6 +126,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PKG_CONFIG_PATH: ${{ matrix.pkgConfigPath }}
+          VCPKG_ROOT: C:\vcpkg
         with:
           tagName: v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
           releaseName: 'v__VERSION__'
@@ -80,18 +135,20 @@ jobs:
           releaseDraft: true
           prerelease: false
           assetNamePattern: "[platform]-[arch]-[name]-[version][ext]"
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} --features libheif
 
       - name: build and provide workflow artifacts
         uses: tauri-apps/tauri-action@v0
         if: ${{ github.event_name == 'pull_request' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PKG_CONFIG_PATH: ${{ matrix.pkgConfigPath }}
+          VCPKG_ROOT: C:\vcpkg
         with:
           assetNamePattern: "[platform]-[arch]-[name]-[version][ext]"
           # will be released in 1.0.0
           #uploadWorkflowArtifacts: true
-          args: ${{ matrix.args }} --no-sign
+          args: ${{ matrix.args }} --features libheif --no-sign
 
       - name: Upload macOS bundle artifacts
         uses: actions/upload-artifact@v6
@@ -106,7 +163,7 @@ jobs:
 
       - name: Upload Windows bundle artifacts
         uses: actions/upload-artifact@v6
-        if: ${{ startsWith(matrix.platform, 'windows') && github.event_name == 'pull_request' }}
+        if: ${{ startsWith(matrix.platform, 'windows') && github.event_name == 'pull_request' }}
         with:
           name: tauri-bundles-${{ matrix.platform }}
           path: |
@@ -117,7 +174,7 @@ jobs:
 
       - name: Upload Linux bundle artifacts
         uses: actions/upload-artifact@v6
-        if: ${{ startsWith(matrix.platform, 'ubuntu') && github.event_name == 'pull_request' }}
+        if: ${{ startsWith(matrix.platform, 'ubuntu') && github.event_name == 'pull_request' }}
         with:
           name: tauri-bundles-${{ matrix.platform }}
           path: |

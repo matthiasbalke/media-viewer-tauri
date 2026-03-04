@@ -51,7 +51,12 @@
     name: string;
     path: string;
     isVideo: boolean;
-    thumbnailState: "loading" | "ready" | "error" | "unsupported";
+    thumbnailState:
+      | "loading"
+      | "ready"
+      | "error"
+      | "unsupported"
+      | "frontend-render";
     thumbnailSrc: string | null;
   }
   let viewingFile: MediaFile | null = $state(null);
@@ -364,7 +369,8 @@
     </nav>
   </aside>
 
-  <!-- Resizer Handle -->
+  <!-- Resizer Handle: drag-only interaction, keyboard resize not implemented -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     class="w-1 cursor-col-resize hover:bg-amber-500 transition-colors z-10 {isSidebarDragging
       ? 'bg-amber-500'
