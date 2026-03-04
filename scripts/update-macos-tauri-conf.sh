@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # update-macos-tauri-conf.sh
 #
-# Collects libheif and all its Homebrew transitive dylib dependencies and
-# generates src-tauri/tauri.macos.conf.json with bundle.macOS.frameworks
-# pointing to the ORIGINAL Homebrew library paths.
+# Collects libheif and all its Homebrew transitive dylib dependencies,
+# copies them into src-tauri/macOS-frameworks/, and generates
+# src-tauri/tauri.macos.conf.json with bundle.macOS.frameworks pointing
+# to relative paths (e.g. "./macOS-frameworks/libheif.1.dylib").
 #
-# Tauri reads this during macOS builds and for each listed framework:
-#   1. Copies the dylib into the .app's Contents/Frameworks/
-#   2. Runs install_name_tool to rewrite the binary's LC_LOAD_DYLIB entry
-#      from the absolute Homebrew path to @executable_path/../Frameworks/
+# Tauri requires LOCAL relative paths (relative to src-tauri/) so that it
+# can correctly rewrite the binary's LC_LOAD_DYLIB entries from the absolute
+# Homebrew path to @executable_path/../Frameworks/ at bundle time.
+# See: https://tauri.app/distribute/macos-application-bundle/#including-macos-frameworks
 #
 # Run this script whenever you update libheif (brew upgrade libheif),
-# then commit the regenerated src-tauri/tauri.macos.conf.json.
+# then commit both src-tauri/macOS-frameworks/ and src-tauri/tauri.macos.conf.json.
 #
 # Usage:
 #   ./scripts/update-macos-tauri-conf.sh
@@ -20,7 +21,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONF_FILE="$REPO_ROOT/src-tauri/tauri.macos.conf.json"
+SRC_TAURI="$REPO_ROOT/src-tauri"
+FRAMEWORKS_DIR="$SRC_TAURI/macOS-frameworks"
+CONF_FILE="$SRC_TAURI/tauri.macos.conf.json"
 
 if [[ "$(uname)" != "Darwin" ]]; then
   echo "This script is macOS-only." >&2
@@ -37,15 +40,13 @@ if ! brew list libheif &>/dev/null; then
   exit 1
 fi
 
-echo "Resolving libheif framework paths ..."
+echo "Resolving libheif dylib dependencies ..."
 
 # Track visited libraries to avoid infinite loops (bash 3.2-compatible, no declare -A)
 VISITED=""
-FRAMEWORK_PATHS=()
+ABSOLUTE_PATHS=()
 
-# Recursively follow otool -L to collect original Homebrew dylib paths.
-# We intentionally keep the original paths (not copies) so that Tauri can
-# match them against the binary's LC_LOAD_DYLIB entries and rewrite them.
+# Recursively follow otool -L to collect all Homebrew dylib paths.
 collect_deps() {
   local lib="$1"
   local name
@@ -53,7 +54,7 @@ collect_deps() {
   case ":$VISITED:" in *":$name:"*) return ;; esac
   VISITED="$VISITED:$name:"
   echo "  + $lib"
-  FRAMEWORK_PATHS+=("$lib")
+  ABSOLUTE_PATHS+=("$lib")
   while IFS= read -r dep; do
     collect_deps "$dep"
   done < <(
@@ -65,11 +66,24 @@ collect_deps() {
 collect_deps "$(brew --prefix libheif)/lib/libheif.dylib"
 
 echo ""
+echo "Copying dylibs to $FRAMEWORKS_DIR ..."
+rm -rf "$FRAMEWORKS_DIR"
+mkdir -p "$FRAMEWORKS_DIR"
+
+RELATIVE_PATHS=()
+for abs in "${ABSOLUTE_PATHS[@]}"; do
+  name=$(basename "$abs")
+  cp "$abs" "$FRAMEWORKS_DIR/$name"
+  echo "  copied $name"
+  RELATIVE_PATHS+=("./macOS-frameworks/$name")
+done
+
+echo ""
 echo "Generating $CONF_FILE ..."
 
-# Write paths to a temp file (one per line) — avoids bash 4.4-only @Q expansion
+# Write relative paths to a temp file (one per line) — avoids bash 4.4-only @Q expansion
 _TMP_PATHS=$(mktemp)
-printf '%s\n' "${FRAMEWORK_PATHS[@]}" > "$_TMP_PATHS"
+printf '%s\n' "${RELATIVE_PATHS[@]}" > "$_TMP_PATHS"
 
 python3 - "$_TMP_PATHS" "$CONF_FILE" <<'EOF'
 import json, sys
@@ -95,4 +109,4 @@ EOF
 
 rm -f "$_TMP_PATHS"
 
-echo "Done. Commit src-tauri/tauri.macos.conf.json to version control."
+echo "Done. Commit src-tauri/macOS-frameworks/ and src-tauri/tauri.macos.conf.json to version control."
