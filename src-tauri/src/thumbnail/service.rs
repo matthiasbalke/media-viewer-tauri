@@ -811,4 +811,300 @@ mod tests {
         // This should be true because image crate detects it as a JPEG (image/jpeg)
         assert!(ThumbnailService::is_supported(&d));
     }
+
+    // ---------------------------------------------------------------------------
+    // Helpers shared by save_video_thumbnail tests
+    // ---------------------------------------------------------------------------
+
+    /// Returns a minimal but valid 1×1 JPEG as raw bytes.
+    fn minimal_jpeg_bytes() -> Vec<u8> {
+        vec![
+            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00,
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43, 0x00, 0x08, 0x06, 0x06,
+            0x07, 0x06, 0x05, 0x08, 0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D,
+            0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12, 0x13, 0x0F, 0x14, 0x1D, 0x1A, 0x1F, 0x1E, 0x1D,
+            0x1A, 0x1C, 0x1C, 0x20, 0x24, 0x2E, 0x27, 0x20, 0x22, 0x2C, 0x23, 0x1C, 0x1C, 0x28,
+            0x37, 0x29, 0x2C, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1F, 0x27, 0x39, 0x3D, 0x38, 0x32,
+            0x3C, 0x2E, 0x33, 0x34, 0x32, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01, 0x00, 0x01,
+            0x01, 0x01, 0x11, 0x00, 0xFF, 0xC4, 0x00, 0x1F, 0x00, 0x00, 0x01, 0x05, 0x01, 0x01,
+            0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02,
+            0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF, 0xDA, 0x00, 0x08, 0x01,
+            0x01, 0x00, 0x00, 0x3F, 0x00, 0xFB, 0xD2, 0x8A, 0x28, 0x03, 0xFF, 0xD9,
+        ]
+    }
+
+    fn minimal_jpeg_b64() -> String {
+        use base64::{engine::general_purpose, Engine as _};
+        general_purpose::STANDARD.encode(minimal_jpeg_bytes())
+    }
+
+    // ---------------------------------------------------------------------------
+    // save_video_thumbnail — Happy path
+    // ---------------------------------------------------------------------------
+
+    /// #1 — Valid base64 with a data URI prefix (the common browser canvas output).
+    #[test]
+    fn test_save_video_thumbnail_with_data_uri_prefix() {
+        use tempfile::tempdir;
+        let tmp = tempdir().unwrap();
+        let cache_dir = tmp.path().to_str().unwrap().to_string();
+        let source_path = "/fake/video/clip.mp4".to_string();
+        let base64_data = format!("data:image/jpeg;base64,{}", minimal_jpeg_b64());
+
+        let result = ThumbnailService::save_video_thumbnail(
+            source_path.clone(),
+            base64_data,
+            cache_dir.clone(),
+        );
+
+        assert!(result.is_ok(), "Expected Ok, got: {:?}", result.err());
+        let thumb_path = PathBuf::from(result.unwrap());
+        assert!(thumb_path.exists(), "Thumbnail file should exist on disk");
+        let written = std::fs::read(&thumb_path).unwrap();
+        assert_eq!(
+            written,
+            minimal_jpeg_bytes(),
+            "File contents should match decoded JPEG bytes"
+        );
+    }
+
+    /// #2 — Valid raw base64 without any data URI prefix.
+    #[test]
+    fn test_save_video_thumbnail_without_data_uri_prefix() {
+        use tempfile::tempdir;
+        let tmp = tempdir().unwrap();
+        let cache_dir = tmp.path().to_str().unwrap().to_string();
+
+        let result = ThumbnailService::save_video_thumbnail(
+            "/fake/video/clip.mp4".to_string(),
+            minimal_jpeg_b64(),
+            cache_dir.clone(),
+        );
+
+        assert!(result.is_ok(), "Expected Ok, got: {:?}", result.err());
+        let written = std::fs::read(result.unwrap()).unwrap();
+        assert_eq!(written, minimal_jpeg_bytes());
+    }
+
+    /// #3 — Cache directory is created automatically when it doesn't exist yet.
+    #[test]
+    fn test_save_video_thumbnail_creates_cache_dir() {
+        use tempfile::tempdir;
+        let tmp = tempdir().unwrap();
+        let cache_dir = tmp.path().join("new_cache_subdir");
+        assert!(!cache_dir.exists(), "Pre-condition: dir must not exist");
+
+        let result = ThumbnailService::save_video_thumbnail(
+            "/fake/video/clip.mp4".to_string(),
+            minimal_jpeg_b64(),
+            cache_dir.to_str().unwrap().to_string(),
+        );
+
+        assert!(result.is_ok(), "Expected Ok, got: {:?}", result.err());
+        assert!(
+            cache_dir.exists(),
+            "Cache directory should have been created"
+        );
+    }
+
+    /// #4 — Manifest is updated after a successful save.
+    #[test]
+    fn test_save_video_thumbnail_registers_in_manifest() {
+        use tempfile::tempdir;
+        let tmp = tempdir().unwrap();
+        let cache_dir = tmp.path().to_str().unwrap().to_string();
+
+        ThumbnailService::save_video_thumbnail(
+            "/fake/video/clip.mp4".to_string(),
+            minimal_jpeg_b64(),
+            cache_dir.clone(),
+        )
+        .expect("save should succeed");
+
+        let manifest_path = tmp.path().join("manifest.json");
+        assert!(manifest_path.exists(), "manifest.json should exist");
+        let manifest_json = std::fs::read_to_string(&manifest_path).unwrap();
+        assert!(
+            manifest_json.contains("clip.mp4"),
+            "Manifest should contain the source filename, got: {}",
+            manifest_json
+        );
+    }
+
+    /// #5 — A second call for the same source path overwrites the cached file.
+    #[test]
+    fn test_save_video_thumbnail_overwrites_existing() {
+        use base64::{engine::general_purpose, Engine as _};
+        use tempfile::tempdir;
+        let tmp = tempdir().unwrap();
+        let cache_dir = tmp.path().to_str().unwrap().to_string();
+        let source_path = "/fake/video/clip.mp4".to_string();
+
+        // First save — original JPEG bytes
+        ThumbnailService::save_video_thumbnail(
+            source_path.clone(),
+            minimal_jpeg_b64(),
+            cache_dir.clone(),
+        )
+        .expect("first save should succeed");
+
+        // Second save — different (arbitrary) content
+        let different_bytes = b"DIFFERENT_CONTENT".to_vec();
+        let different_b64 = general_purpose::STANDARD.encode(&different_bytes);
+
+        let result2 = ThumbnailService::save_video_thumbnail(
+            source_path.clone(),
+            different_b64,
+            cache_dir.clone(),
+        );
+
+        assert!(result2.is_ok(), "Second save should succeed");
+        let written = std::fs::read(result2.unwrap()).unwrap();
+        assert_eq!(
+            written, different_bytes,
+            "Second save should overwrite with new content"
+        );
+    }
+
+    // ---------------------------------------------------------------------------
+    // save_video_thumbnail — Error paths
+    // ---------------------------------------------------------------------------
+
+    /// #6 — An invalid base64 payload produces an Err with a descriptive message.
+    #[test]
+    fn test_save_video_thumbnail_invalid_base64() {
+        use tempfile::tempdir;
+        let tmp = tempdir().unwrap();
+        let cache_dir = tmp.path().to_str().unwrap().to_string();
+
+        let result = ThumbnailService::save_video_thumbnail(
+            "/fake/video/clip.mp4".to_string(),
+            "data:image/jpeg;base64,!!!NOT_VALID_BASE64!!!".to_string(),
+            cache_dir,
+        );
+
+        assert!(result.is_err(), "Expected Err for invalid base64");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("Failed to decode base64"),
+            "Error message should mention base64 decode failure, got: {}",
+            msg
+        );
+    }
+
+    /// #7 — If cache_base_dir points to an existing file the call fails.
+    #[test]
+    fn test_save_video_thumbnail_cache_dir_is_file() {
+        use tempfile::tempdir;
+        let tmp = tempdir().unwrap();
+        let file_path = tmp.path().join("not_a_dir");
+        std::fs::write(&file_path, b"i am a file").unwrap();
+
+        let result = ThumbnailService::save_video_thumbnail(
+            "/fake/video/clip.mp4".to_string(),
+            minimal_jpeg_b64(),
+            file_path.to_str().unwrap().to_string(),
+        );
+
+        assert!(result.is_err(), "Expected Err when cache path is a file");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("not a directory"),
+            "Error should mention 'not a directory', got: {}",
+            msg
+        );
+    }
+
+    // ---------------------------------------------------------------------------
+    // save_video_thumbnail — Edge cases
+    // ---------------------------------------------------------------------------
+
+    /// #8 — Empty string decodes to zero bytes; the function writes an empty file.
+    #[test]
+    fn test_save_video_thumbnail_empty_base64() {
+        use tempfile::tempdir;
+        let tmp = tempdir().unwrap();
+        let cache_dir = tmp.path().to_str().unwrap().to_string();
+
+        let result = ThumbnailService::save_video_thumbnail(
+            "/fake/video/clip.mp4".to_string(),
+            "".to_string(),
+            cache_dir,
+        );
+
+        // Empty string is valid base64 (yields no bytes) — write succeeds.
+        assert!(
+            result.is_ok(),
+            "Expected Ok for empty base64, got: {:?}",
+            result.err()
+        );
+        let written = std::fs::read(result.unwrap()).unwrap();
+        assert!(written.is_empty(), "Written file should be zero bytes");
+    }
+
+    /// #9 — Data URI with an unusual MIME type is still stripped by the comma-split logic.
+    #[test]
+    fn test_save_video_thumbnail_alternative_mime_prefix() {
+        use tempfile::tempdir;
+        let tmp = tempdir().unwrap();
+        let cache_dir = tmp.path().to_str().unwrap().to_string();
+        let base64_data = format!("data:image/png;base64,{}", minimal_jpeg_b64());
+
+        let result = ThumbnailService::save_video_thumbnail(
+            "/fake/video/clip.mp4".to_string(),
+            base64_data,
+            cache_dir,
+        );
+
+        assert!(result.is_ok(), "Expected Ok, got: {:?}", result.err());
+        let written = std::fs::read(result.unwrap()).unwrap();
+        assert_eq!(
+            written,
+            minimal_jpeg_bytes(),
+            "Content should be correct regardless of MIME type in prefix"
+        );
+    }
+
+    /// #10 — Source paths with spaces and special characters work because the
+    ///        cache key is a hash of the normalized path, never the path itself.
+    #[test]
+    fn test_save_video_thumbnail_special_chars_in_source_path() {
+        use tempfile::tempdir;
+        let tmp = tempdir().unwrap();
+        let cache_dir = tmp.path().to_str().unwrap().to_string();
+        let source_path = "/my videos/Vacación (2024)/clip #1.mp4".to_string();
+
+        let result =
+            ThumbnailService::save_video_thumbnail(source_path, minimal_jpeg_b64(), cache_dir);
+
+        assert!(
+            result.is_ok(),
+            "Expected Ok for path with special chars, got: {:?}",
+            result.err()
+        );
+        assert!(PathBuf::from(result.unwrap()).exists());
+    }
+
+    /// #11 — The returned path string is a child of cache_base_dir.
+    #[test]
+    fn test_save_video_thumbnail_returned_path_inside_cache_dir() {
+        use tempfile::tempdir;
+        let tmp = tempdir().unwrap();
+        let cache_dir = tmp.path().to_str().unwrap().to_string();
+
+        let result = ThumbnailService::save_video_thumbnail(
+            "/fake/video/clip.mp4".to_string(),
+            minimal_jpeg_b64(),
+            cache_dir.clone(),
+        );
+
+        assert!(result.is_ok(), "Expected Ok, got: {:?}", result.err());
+        let returned = result.unwrap();
+        assert!(
+            returned.starts_with(&cache_dir),
+            "Returned path '{}' should be inside cache_dir '{}'",
+            returned,
+            cache_dir
+        );
+    }
 }
