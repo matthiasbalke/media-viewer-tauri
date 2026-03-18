@@ -812,6 +812,59 @@ mod tests {
         assert!(ThumbnailService::is_supported(&d));
     }
 
+    #[test]
+    fn test_is_video_valid_extensions() {
+        assert!(ThumbnailService::is_video(&PathBuf::from("clip.mp4")));
+        assert!(ThumbnailService::is_video(&PathBuf::from("clip.MP4")));
+        assert!(ThumbnailService::is_video(&PathBuf::from("clip.webm")));
+        assert!(ThumbnailService::is_video(&PathBuf::from("clip.mkv")));
+        assert!(ThumbnailService::is_video(&PathBuf::from("clip.avi")));
+        assert!(ThumbnailService::is_video(&PathBuf::from("clip.mov")));
+        assert!(ThumbnailService::is_video(&PathBuf::from("clip.wmv")));
+        assert!(ThumbnailService::is_video(&PathBuf::from("clip.flv")));
+        assert!(ThumbnailService::is_video(&PathBuf::from("clip.m4v")));
+    }
+
+    #[test]
+    fn test_is_video_invalid_extensions() {
+        assert!(!ThumbnailService::is_video(&PathBuf::from("image.jpg")));
+        assert!(!ThumbnailService::is_video(&PathBuf::from("image.png")));
+        assert!(!ThumbnailService::is_video(&PathBuf::from("image.heic")));
+        assert!(!ThumbnailService::is_video(&PathBuf::from("doc.txt")));
+    }
+
+    #[test]
+    fn test_is_video_edge_cases() {
+        assert!(!ThumbnailService::is_video(&PathBuf::from(
+            "no_extension_file"
+        )));
+        assert!(!ThumbnailService::is_video(&PathBuf::from(".hidden_no_ext")));
+    }
+
+    #[test]
+    fn test_is_heic_valid_extensions() {
+        assert!(ThumbnailService::is_heic(&PathBuf::from("photo.heic")));
+        assert!(ThumbnailService::is_heic(&PathBuf::from("photo.HEIC")));
+        assert!(ThumbnailService::is_heic(&PathBuf::from("photo.heif")));
+        assert!(ThumbnailService::is_heic(&PathBuf::from("photo.HEIF")));
+    }
+
+    #[test]
+    fn test_is_heic_invalid_extensions() {
+        assert!(!ThumbnailService::is_heic(&PathBuf::from("image.jpg")));
+        assert!(!ThumbnailService::is_heic(&PathBuf::from("image.png")));
+        assert!(!ThumbnailService::is_heic(&PathBuf::from("clip.mp4")));
+        assert!(!ThumbnailService::is_heic(&PathBuf::from("doc.txt")));
+    }
+
+    #[test]
+    fn test_is_heic_edge_cases() {
+        assert!(!ThumbnailService::is_heic(&PathBuf::from(
+            "no_extension_file"
+        )));
+        assert!(!ThumbnailService::is_heic(&PathBuf::from(".hidden_no_ext")));
+    }
+
     // ---------------------------------------------------------------------------
     // Helpers shared by save_video_thumbnail tests
     // ---------------------------------------------------------------------------
