@@ -109,6 +109,12 @@ jobs:
           workspaces: './src-tauri -> target'
           shared-key: ${{ inputs.platform }}-${{ inputs.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Debug cargo cache sizes
+        run: |
+          du -sh ~/.cargo/registry || true
+          du -sh ~/.cargo/git || true
+          du -sh src-tauri/target/release/deps || true
+
       - name: install frontend dependencies
         run: bun install
 
