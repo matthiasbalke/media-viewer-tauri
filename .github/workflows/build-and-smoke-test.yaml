@@ -211,6 +211,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-0 xvfb
 
+      - name: Install runtime dependencies (macOS only)
+        if: ${{ startsWith(inputs.platform, 'macos') }}
+        run: |
+          brew install libheif
+
       - name: Smoke test (macOS)
         if: ${{ startsWith(inputs.platform, 'macos') }}
         run: |
@@ -233,8 +238,8 @@ jobs:
         if: ${{ startsWith(inputs.platform, 'ubuntu') }}
         run: |
           # Purge system libheif so the AppImage uses its own bundled version.
-          # dpkg --purge bypasses apt dependency resolution which would reinstall libheif1.
-          sudo dpkg --purge libheif1 || true
+          # Use --force-depends to remove even if other packages depend on it.
+          sudo dpkg --force-depends --purge libheif1 || true
           sudo ldconfig
           APPIMAGE=$(find bundle -name "*.AppImage" | head -1)
           chmod +x "$APPIMAGE"
@@ -250,12 +255,44 @@ jobs:
         run: |
           $installer = Get-ChildItem -Path bundle -Recurse -Filter "*-setup.exe" | Select-Object -First 1
           if (-not $installer) { Write-Error "No NSIS installer found"; exit 1 }
+          Write-Host "Running installer: $($installer.FullName)"
           Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait
-          $searchPaths = @($env:ProgramFiles, ${env:ProgramFiles(x86)}, "$env:LOCALAPPDATA\Programs")
+          Write-Host "Installer completed. Searching for media-viewer.exe..."
+          $searchPaths = @(
+            $env:ProgramFiles,
+            ${env:ProgramFiles(x86)},
+            "$env:LOCALAPPDATA\Programs",
+            "$env:APPDATA\Programs",
+            "C:\Program Files\media-viewer",
+            "$env:LOCALAPPDATA\Programs\com.github.matthiasbalke.media-viewer"
+          )
           $app = $null
           foreach ($path in $searchPaths) {
+            if (-not $path) { continue }
+            Write-Host "Searching in: $path"
             $app = Get-ChildItem -Path $path -Recurse -Filter "media-viewer.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($app) { break }
+            if ($app) { Write-Host "Found: $($app.FullName)"; break }
+          }
+          if (-not $app) {
+            Write-Host "Not found in standard paths. Checking registry for install location..."
+            $regPaths = @(
+              "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+              "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+              "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+            )
+            foreach ($regPath in $regPaths) {
+              $keys = Get-ChildItem -Path $regPath -ErrorAction SilentlyContinue
+              foreach ($key in $keys) {
+                $name = $key.GetValue("DisplayName") -as [string]
+                if ($name -like "*media-viewer*") {
+                  $installLocation = $key.GetValue("InstallLocation")
+                  Write-Host "Found registry entry: $name at $installLocation"
+                  $app = Get-ChildItem -Path $installLocation -Recurse -Filter "media-viewer.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+                  if ($app) { Write-Host "Found: $($app.FullName)"; break }
+                }
+              }
+              if ($app) { break }
+            }
           }
           if (-not $app) { Write-Error "Installed binary not found"; exit 1 }
           $p = Start-Process -FilePath $app.FullName -PassThru
