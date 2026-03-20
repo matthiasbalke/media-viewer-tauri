@@ -89,6 +89,15 @@ jobs:
           vcpkg install libheif:x64-windows-static-md
           vcpkg integrate install
 
+      - name: prepare windows-dlls directory (windows only)
+        if: ${{ startsWith(inputs.platform, 'windows') }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/windows-dlls
+          # libheif is statically linked (x64-windows-static-md); create placeholder so
+          # the tauri.windows.conf.json glob pattern "windows-dlls/*" resolves correctly.
+          New-Item -ItemType File -Force -Path src-tauri/windows-dlls/.gitkeep
+
       - name: setup node
         uses: actions/setup-node@v6
         with:
@@ -223,8 +232,10 @@ jobs:
       - name: Smoke test (Linux)
         if: ${{ startsWith(inputs.platform, 'ubuntu') }}
         run: |
-          # Remove system libheif so the AppImage uses its own bundled version
-          sudo apt-get remove -y libheif1 || true
+          # Purge system libheif so the AppImage uses its own bundled version.
+          # dpkg --purge bypasses apt dependency resolution which would reinstall libheif1.
+          sudo dpkg --purge libheif1 || true
+          sudo ldconfig
           APPIMAGE=$(find bundle -name "*.AppImage" | head -1)
           chmod +x "$APPIMAGE"
           set +e
