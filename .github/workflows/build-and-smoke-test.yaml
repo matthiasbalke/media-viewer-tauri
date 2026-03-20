@@ -32,7 +32,7 @@ jobs:
       contents: write
     runs-on: ${{ inputs.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: install libheif (macOS only)
         if: ${{ startsWith(inputs.platform, 'macos') }}
@@ -90,7 +90,7 @@ jobs:
           vcpkg integrate install
 
       - name: setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: lts/*
 
