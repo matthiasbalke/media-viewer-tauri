@@ -542,7 +542,7 @@ impl ThumbnailService {
                     return;
                 }
 
-                // HEIC/HEIF: try embedded EXIF thumbnail first, then ffmpeg
+                // HEIC/HEIF: libheif full decode first, then EXIF IFD1 embedded thumbnail, then ffmpeg
                 if Self::is_heic(&path) {
                     let cache_path =
                         cache::thumbnail_path(&path, Path::new(&cache_base_dir_worker));
