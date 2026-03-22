@@ -38,6 +38,19 @@ struct ThumbnailUpdate {
 
 pub struct ThumbnailService;
 
+/// Creates a `Command` that will not open a console window on Windows.
+fn new_command(program: &str) -> std::process::Command {
+    #[allow(unused_mut)]
+    let mut cmd = std::process::Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 impl ThumbnailService {
     /// Returns true if the file is a supported image format by checking its magic bytes.
     fn is_supported(path: &Path) -> bool {
@@ -254,7 +267,7 @@ impl ThumbnailService {
         };
 
         for ffmpeg in &ffmpeg_candidates {
-            let result = std::process::Command::new(ffmpeg)
+            let result = new_command(ffmpeg)
                 .args([
                     "-ss",
                     &format!("{}", video_duration_secs),
@@ -297,7 +310,7 @@ impl ThumbnailService {
                     .unwrap_or(true); // file missing → also retry
 
                 if needs_retry {
-                    let result2 = std::process::Command::new(ffmpeg)
+                    let result2 = new_command(ffmpeg)
                         .args([
                             "-i",
                             &path.to_string_lossy().to_string(),
@@ -1024,7 +1037,7 @@ mod tests {
             .iter()
             .copied()
             .find(|&candidate| {
-                std::process::Command::new(candidate)
+                new_command(candidate)
                     .arg("-version")
                     .stdout(std::process::Stdio::null())
                     .stderr(std::process::Stdio::null())
@@ -1036,7 +1049,7 @@ mod tests {
 
     /// Trims `src` to `duration_secs` seconds using `-c copy` and writes to `dest`.
     fn trim_video_with_ffmpeg(ffmpeg: &str, src: &Path, dest: &Path, duration_secs: f32) -> bool {
-        std::process::Command::new(ffmpeg)
+        new_command(ffmpeg)
             .args([
                 "-i",
                 src.to_str().unwrap(),
