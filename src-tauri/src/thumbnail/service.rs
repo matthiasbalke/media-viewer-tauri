@@ -678,6 +678,71 @@ impl ThumbnailService {
     }
 }
 
+/// Finds an available ffmpeg binary, returning its path string.
+fn find_ffmpeg_bin() -> Option<&'static str> {
+    ["ffmpeg", "/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"]
+        .iter()
+        .copied()
+        .find(|&candidate| {
+            new_command(candidate)
+                .arg("-version")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+        })
+}
+
+/// Converts any ffmpeg-readable image (e.g. HEIC) to a JPEG at `dest`.
+pub fn convert_to_jpeg_ffmpeg(source: &Path, dest: &Path) -> Result<(), String> {
+    log::debug!("convert_to_jpeg_ffmpeg: {} -> {}", source.display(), dest.display());
+    let ffmpeg = find_ffmpeg_bin().ok_or_else(|| "ffmpeg not found".to_string())?;
+    let out = new_command(ffmpeg)
+        .args([
+            "-i",
+            &source.to_string_lossy(),
+            "-q:v",
+            "2",
+            "-y",
+            &dest.to_string_lossy(),
+        ])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).to_string())
+    }
+}
+
+/// Remuxes any ffmpeg-readable video to an MP4 container, copying the video
+/// stream and transcoding audio to AAC.
+pub fn remux_to_mp4_ffmpeg(source: &Path, dest: &Path) -> Result<(), String> {
+    log::debug!("remux_to_mp4_ffmpeg: {} -> {}", source.display(), dest.display());
+    let ffmpeg = find_ffmpeg_bin().ok_or_else(|| "ffmpeg not found".to_string())?;
+    let out = new_command(ffmpeg)
+        .args([
+            "-i",
+            &source.to_string_lossy(),
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-movflags",
+            "+faststart",
+            "-y",
+            &dest.to_string_lossy(),
+        ])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

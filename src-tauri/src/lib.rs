@@ -39,6 +39,42 @@ async fn delete_all_thumbnails(cache_base_dir: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn get_image_preview(path: String, cache_base_dir: String) -> Result<String, String> {
+    let source = std::path::PathBuf::from(&path);
+    let base = std::path::PathBuf::from(&cache_base_dir);
+    let dest = thumbnail::cache::preview_path(&source, &base, "jpg");
+    std::fs::create_dir_all(dest.parent().unwrap()).map_err(|e| e.to_string())?;
+    if !dest.exists() {
+        tokio::task::spawn_blocking({
+            let s = source.clone();
+            let d = dest.clone();
+            move || thumbnail::service::convert_to_jpeg_ffmpeg(&s, &d)
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+    }
+    Ok(dest.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+async fn get_video_preview(path: String, cache_base_dir: String) -> Result<String, String> {
+    let source = std::path::PathBuf::from(&path);
+    let base = std::path::PathBuf::from(&cache_base_dir);
+    let dest = thumbnail::cache::preview_path(&source, &base, "mp4");
+    std::fs::create_dir_all(dest.parent().unwrap()).map_err(|e| e.to_string())?;
+    if !dest.exists() {
+        tokio::task::spawn_blocking({
+            let s = source.clone();
+            let d = dest.clone();
+            move || thumbnail::service::remux_to_mp4_ffmpeg(&s, &d)
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+    }
+    Ok(dest.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
 async fn save_video_thumbnail(
     path: String,
     base64_data: String,
@@ -141,7 +177,9 @@ pub fn run() {
             cleanup_thumbnails_for_dir,
             cleanup_orphan_thumbnails,
             delete_all_thumbnails,
-            save_video_thumbnail
+            save_video_thumbnail,
+            get_image_preview,
+            get_video_preview
         ])
         .setup(|app| {
             let handle = app.handle().clone();
