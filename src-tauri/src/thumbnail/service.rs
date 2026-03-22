@@ -155,64 +155,6 @@ impl ThumbnailService {
         None
     }
 
-    /// Extracts the embedded JPEG thumbnail from a HEIC/HEIF file using EXIF IFD1 data.
-    /// iPhone HEIC files always contain a small JPEG preview in their EXIF block.
-    /// Returns the raw JPEG bytes if found, or None.
-    fn extract_heic_thumbnail(path: &Path) -> Option<Vec<u8>> {
-        use exif::{In, Reader, Tag, Value};
-        use std::io::BufReader;
-
-        let file = std::fs::File::open(path).ok()?;
-        let mut buf = BufReader::new(file);
-
-        // kamadak-exif supports reading EXIF from HEIF/HEIC containers directly
-        let exif = Reader::new().read_from_container(&mut buf).ok()?;
-
-        // IFD1 contains the embedded thumbnail image reference
-        let jpeg_offset = match exif.get_field(Tag::JPEGInterchangeFormat, In::THUMBNAIL) {
-            Some(f) => match &f.value {
-                Value::Long(v) => match v.first() {
-                    Some(&o) => o as usize,
-                    None => return None,
-                },
-                _ => return None,
-            },
-            None => return None,
-        };
-
-        let jpeg_length = match exif.get_field(Tag::JPEGInterchangeFormatLength, In::THUMBNAIL) {
-            Some(f) => match &f.value {
-                Value::Long(v) => match v.first() {
-                    Some(&l) => l as usize,
-                    None => return None,
-                },
-                _ => return None,
-            },
-            None => return None,
-        };
-
-        if jpeg_length == 0 {
-            return None;
-        }
-
-        // exif.buf() returns the raw TIFF-format EXIF bytes.
-        // JPEGInterchangeFormat offset is relative to the TIFF header (buf start).
-        let raw = exif.buf();
-        let end = jpeg_offset.saturating_add(jpeg_length);
-        if end > raw.len() {
-            return None;
-        }
-
-        let thumb_bytes = raw[jpeg_offset..end].to_vec();
-
-        // Validate JPEG magic bytes (0xFF 0xD8 0xFF)
-        if thumb_bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
-            Some(thumb_bytes)
-        } else {
-            None
-        }
-    }
-
     /// Extracts a proper thumbnail from any HEIC/HEIF file using the system `libheif` library.
     /// Handles Grid-encoded HEIC (portrait mode, computational photography) by correctly
     /// assembling tiles via the HEIF primary image item — something ffmpeg cannot do alone.
@@ -542,7 +484,7 @@ impl ThumbnailService {
                     return;
                 }
 
-                // HEIC/HEIF: libheif full decode first, then EXIF IFD1 embedded thumbnail, then ffmpeg
+                // HEIC/HEIF: libheif full decode first, then ffmpeg
                 if Self::is_heic(&path) {
                     let cache_path =
                         cache::thumbnail_path(&path, Path::new(&cache_base_dir_worker));
@@ -571,13 +513,7 @@ impl ThumbnailService {
                         #[cfg(not(feature = "libheif"))]
                         let mut resolved: Option<Vec<u8>> = None;
 
-                        // 2. Try EXIF IFD1 embedded JPEG thumbnail (regular iPhone HEIC)
-                        if resolved.is_none() {
-                            resolved =
-                                tokio::task::block_in_place(|| Self::extract_heic_thumbnail(&path));
-                        }
-
-                        // 3. Fallback to ffmpeg (works for non-Grid HEIC, may crop for Grid)
+                        // 2. Fallback to ffmpeg (works for non-Grid HEIC, may crop for Grid)
                         if resolved.is_none() {
                             resolved = tokio::task::block_in_place(|| {
                                 Self::extract_video_frame_ffmpeg(&path)
@@ -1479,28 +1415,6 @@ mod tests {
             result.err()
         );
         assert!(PathBuf::from(result.unwrap()).exists());
-    }
-
-    // ---------------------------------------------------------------------------
-    // extract_heic_thumbnail
-    // ---------------------------------------------------------------------------
-
-    #[test]
-    fn test_extract_heic_thumbnail_nonexistent_file() {
-        let result =
-            ThumbnailService::extract_heic_thumbnail(Path::new("/nonexistent/file.heic"));
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_extract_heic_thumbnail_not_heic() {
-        use tempfile::tempdir;
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("fake.heic");
-        std::fs::write(&path, b"this is not a heic file").unwrap();
-
-        let result = ThumbnailService::extract_heic_thumbnail(&path);
-        assert!(result.is_none());
     }
 
     // ---------------------------------------------------------------------------
